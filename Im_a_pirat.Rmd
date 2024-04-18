@@ -2,11 +2,13 @@
 
 ```{r}
 
-train <- read.csv("D:/Documents/DHBW Ravensburg/6. Semester/Tuning von Algorithmen/tuning_house_prices/resources/test.csv")
+#train <- read.csv("D:/Documents/DHBW Ravensburg/6. Semester/Tuning von Algorithmen/tuning_house_prices/resources/train.csv")
 
-test <- read.csv("D:/Documents/DHBW Ravensburg/6. Semester/Tuning von Algorithmen/tuning_house_prices/resources/test.csv")
+#test <- read.csv("D:/Documents/DHBW Ravensburg/6. Semester/Tuning von Algorithmen/tuning_house_prices/resources/test.csv")
 
-solution <- read.csv("D:/Documents/DHBW Ravensburg/6. Semester/Tuning von Algorithmen/tuning_house_prices/resources/solution.csv")
+#solution <- read.csv("D:/Documents/DHBW Ravensburg/6. Semester/Tuning von Algorithmen/tuning_house_prices/resources/solution.csv")
+
+df <- read.csv("D:/Documents/DHBW Ravensburg/6. Semester/Tuning von Algorithmen/tuning_house_prices/resources/house_prices_df.csv")
 
 ```
 
@@ -14,50 +16,85 @@ solution <- read.csv("D:/Documents/DHBW Ravensburg/6. Semester/Tuning von Algori
 # Zeige die ersten paar Zeilen der geladenen Daten an
 
 ```{r}
-print(head(test))
+print(head(df))
 ```
 
 ```{r}
-if (nrow(test) == nrow(solution)) {
-  combined <- merge(test, solution)
+#if (nrow(test) == nrow(solution)) {
+# combined <- merge(test, solution)
 
-  print(head(combined))
-}
+# print(head(combined))
+#}
 ```
 
 ```{r}
-data <- rbind(train, test)
+#df <- rbind(train, combined)
 
-print(head(combined))
+print(head(df))
 
+```
+```{r}
+#library(caret)
+
+# Identifiziere numerische und nominale Variablen
+#numerische_spalten <- sapply(df, is.numeric)
+#nominale_spalten <- !numerische_spalten
+
+# Impute fehlende Werte für numerische Variablen mit dem Median
+#imputations_modell_numerisch <- preProcess(df[, numerische_spalten], method = "medianImpute")
+#df[, numerische_spalten] <- predict(imputations_modell_numerisch, df[, numerische_spalten])
+
+# Impute fehlende Werte für nominale Variablen mit dem häufigsten Wert
+#for (spalte in colnames(df[, nominale_spalten])) {
+#  häufigster_wert <- names(which.max(table(df[, spalte])))
+#  df[, spalte][is.na(df[, spalte])] <- häufigster_wert
+#}
+
+#df <- subset(df, select = -Id)
 ```
 
 
 ```{r}
-install.packages("caret")
-install.packages("randomForest")
-
+#install.packages("caret")
+#install.packages("ranger")
 library(caret)
+library(ranger)
 
-folds <- 5
+# Gitter von Werten für die abzustimmenden Parameter
+rfGrid <- expand.grid(mtry = c(2, 3, 4), 
+                      splitrule = c("variance"), 
+                      min.node.size = c(1, 5, 10),
+                      sample.fraction = seq(0.5, 1, 0.1), 
+                      cp = seq(0.01, 0.1, 0.01),
+                      replace = c(TRUE, FALSE))
 
-trainControl <- trainControl(method = "cv", number = folds)
+# Erstellen Sie einen Train-Test-Split
+set.seed(124) # Für reproduzierbare Ergebnisse
+trainIndex <- createDataPartition(df$SalePrice, p = 0.8, list = FALSE)
+trainSet <- df[trainIndex, ]
+testSet <- df[-trainIndex, ]
 
-library(randomForest)
 
-# Parameter für den Random Forest
-rfParams <- list(ntree = 500, mtry = 3) # Anzahl der Bäume und Anzahl der Variablen pro Split
+# Training mit Train-Test-Split
+rfModel <- train(SalePrice ~ ., 
+                 data = trainSet, 
+                 method = "ranger",
+                 num.trees = 500,
+                 trControl = trainControl(method = "cv", number = 5), 
+                 tuneGrid = rfGrid)
 
-# Training mit k-fold Cross-Validation
-rfModel <- train(SalePrice ~ ., data = data, method = "rf", trControl = trainControl, tuneGrid = rfParams)
 
-# Zeige eine Zusammenfassung des trainierten Modells
 print(rfModel)
+# # Vorhersagen auf dem Testset
+# predictions <- predict(rfModel, newdata = testSet)
 
-# Zeige die Ergebnisse der k-fold Cross-Validation
-print(rfModel$results)
+# # Bewertung der Genauigkeit
+# cm <- confusionMatrix(predictions, testSet$SalePrice)
+# print(cm$overall['Accuracy'])
+
 ```
 
 ```{r}
+
 
 ```

@@ -1,0 +1,94 @@
+# Lade die CSV-Dateien
+
+```{r}
+
+train <- read.csv("resources/test.csv")
+
+test <- read.csv("resources/test.csv")
+
+solution <- read.csv("resources/solution.csv")
+
+```
+
+
+# Zeige die ersten paar Zeilen der geladenen Daten an
+
+```{r}
+print(head(test))
+```
+
+```{r}
+if (nrow(test) == nrow(solution)) {
+  combined <- merge(test, solution)
+
+  print(head(combined))
+}
+```
+
+```{r}
+data <- rbind(train, test)
+
+print(head(combined))
+
+```
+
+
+```{r}
+install.packages("caret")
+install.packages("randomForest")
+
+library(caret)
+
+folds <- 5
+
+trainControl <- trainControl(method = "cv", number = folds)
+
+library(randomForest)
+
+# Parameter für den Random Forest
+rfParams <- list(ntree = 500, mtry = 3) # Anzahl der Bäume und Anzahl der Variablen pro Split
+
+# Training mit k-fold Cross-Validation
+rfModel <- train(SalePrice ~ ., data = data, method = "rf", trControl = trainControl, tuneGrid = rfParams)
+
+# Zeige eine Zusammenfassung des trainierten Modells
+print(rfModel)
+
+# Zeige die Ergebnisse der k-fold Cross-Validation
+print(rfModel$results)
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+

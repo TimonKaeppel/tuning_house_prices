@@ -20,81 +20,120 @@ print(head(df))
 ```
 
 ```{r}
-#if (nrow(test) == nrow(solution)) {
-# combined <- merge(test, solution)
-
-# print(head(combined))
-#}
-```
-
-```{r}
-#df <- rbind(train, combined)
-
-print(head(df))
 
 ```
-```{r}
-#library(caret)
-
-# Identifiziere numerische und nominale Variablen
-#numerische_spalten <- sapply(df, is.numeric)
-#nominale_spalten <- !numerische_spalten
-
-# Impute fehlende Werte für numerische Variablen mit dem Median
-#imputations_modell_numerisch <- preProcess(df[, numerische_spalten], method = "medianImpute")
-#df[, numerische_spalten] <- predict(imputations_modell_numerisch, df[, numerische_spalten])
-
-# Impute fehlende Werte für nominale Variablen mit dem häufigsten Wert
-#for (spalte in colnames(df[, nominale_spalten])) {
-#  häufigster_wert <- names(which.max(table(df[, spalte])))
-#  df[, spalte][is.na(df[, spalte])] <- häufigster_wert
-#}
-
-#df <- subset(df, select = -Id)
-```
-
+# Default-Werte für die Parameter des Random Forest-Algorithmus:
+num.trees: 500
+mtry: sqrt(number of variables)
+sample.fraction: 0.632 (für Regression)
+min.node.size: 5 (für Regression)
+replace: FALSE
 
 ```{r}
-#install.packages("caret")
-#install.packages("ranger")
-library(caret)
-library(ranger)
-
-# Gitter von Werten für die abzustimmenden Parameter
-rfGrid <- expand.grid(mtry = c(2, 3, 4), 
-                      splitrule = c("variance"), 
-                      min.node.size = c(1, 5, 10),
-                      sample.fraction = seq(0.5, 1, 0.1), 
-                      cp = seq(0.01, 0.1, 0.01),
-                      replace = c(TRUE, FALSE))
-
-# Erstellen Sie einen Train-Test-Split
+# Train-Test-Split
 set.seed(124) # Für reproduzierbare Ergebnisse
 trainIndex <- createDataPartition(df$SalePrice, p = 0.8, list = FALSE)
 trainSet <- df[trainIndex, ]
 testSet <- df[-trainIndex, ]
 
+# Initialisieren Sie ein Dataframe, um die Ergebnisse zu speichern
+results <- data.frame()
 
-# Training mit Train-Test-Split
-rfModel <- train(SalePrice ~ ., 
-                 data = trainSet, 
-                 method = "ranger",
-                 num.trees = 500,
-                 trControl = trainControl(method = "cv", number = 5), 
-                 tuneGrid = rfGrid)
+# Liste der zu testenden Parameterwerte
+num.trees_values <- c(500, 1000, 1500)
+mtry_values <- c(2, 3, 4)
+sample.fraction_values <- seq(0.5, 1, 0.1)
+min.bucket_values <- c(1, 5, 10)
+replace_values <- c(TRUE, FALSE)
 
+# Tuning für num.trees
+for (val in num.trees_values) {
+  set.seed(124)
+  model <- ranger(SalePrice ~ ., data = trainSet, num.trees = val)
+  pred <- predict(model, data = testSet)$predictions
+  mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+  results <- rbind(results, data.frame(Parameter = "num.trees", Value = val, MSE = mse))
+}
 
-print(rfModel)
-# # Vorhersagen auf dem Testset
-# predictions <- predict(rfModel, newdata = testSet)
+# Tuning für mtry
+for (val in mtry_values) {
+  set.seed(124)
+  model <- ranger(SalePrice ~ ., data = trainSet, mtry = val)
+  pred <- predict(model, data = testSet)$predictions
+  mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+  results <- rbind(results, data.frame(Parameter = "mtry", Value = val, MSE = mse))
+}
 
-# # Bewertung der Genauigkeit
-# cm <- confusionMatrix(predictions, testSet$SalePrice)
-# print(cm$overall['Accuracy'])
+# Tuning für sample.fraction
+for (val in sample.fraction_values) {
+  set.seed(124)
+  model <- ranger(SalePrice ~ ., data = trainSet, sample.fraction = val)
+  pred <- predict(model, data = testSet)$predictions
+  mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+  results <- rbind(results, data.frame(Parameter = "sample.fraction", Value = val, MSE = mse))
+}
+
+# Tuning für min.bucket
+for (val in min.bucket_values) {
+  set.seed(124)
+  model <- ranger(SalePrice ~ ., data = trainSet, min.node.size = val)
+  pred <- predict(model, data = testSet)$predictions
+  mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+  results <- rbind(results, data.frame(Parameter = "min.node.size", Value = val, MSE = mse))
+}
+
+# Tuning für replace
+for (val in replace_values) {
+  set.seed(124)
+  model <- ranger(SalePrice ~ ., data = trainSet, replace = val)
+  pred <- predict(model, data = testSet)$predictions
+  mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+  results <- rbind(results, data.frame(Parameter = "replace", Value = val, MSE = mse))
+}
+
+# Ausgabe der Ergebnisse
+print(results)
+
+# Ausgabe der besten Werte für jeden Parameter
+best_values <- aggregate(MSE ~ Parameter, data = results, min)
+print(best_values)
+```
+
+```{r}
+write.csv(results, file = "results.csv", row.names = FALSE)
+```
+
+```{r}
+# Erstellen Sie ein Gitter aller möglichen Kombinationen von Parametern
+paramGrid <- expand.grid(num.trees = num.trees_values,
+                         mtry = mtry_values,
+                         sample.fraction = sample.fraction_values,
+                         min.node.size = min.bucket_values,
+                         replace = replace_values)
+
+# Initialisieren Sie ein Dataframe, um die Ergebnisse zu speichern
+results2 <- data.frame()
+
+# Trainieren Sie das Modell für jede Kombination von Parametern
+for (i in 1:nrow(paramGrid)) {
+  set.seed(124)
+  model <- ranger(SalePrice ~ ., data = trainSet,
+                  num.trees = paramGrid$num.trees[i],
+                  mtry = paramGrid$mtry[i],
+                  sample.fraction = paramGrid$sample.fraction[i],
+                  min.node.size = paramGrid$min.node.size[i],
+                  replace = paramGrid$replace[i])
+  pred <- predict(model, data = testSet)$predictions
+  mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+  results2 <- rbind(results2, cbind(paramGrid[i, ], MSE = mse))
+}
+
+# Finden Sie die Kombination von Parametern mit dem niedrigsten MSE
+best_params <- results2[which.min(results$MSE), ]
+print(best_params)
 
 ```
 
 ```{r}
-
-
+write.csv(results2, file = "results2.csv", row.names = FALSE)
 ```

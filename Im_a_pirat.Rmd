@@ -55,15 +55,17 @@ replace_values <- c(TRUE, FALSE)
 for (val in num.trees_values) {
   set.seed(124)
   runtime_training <- system.time({
-  model <- ranger(SalePrice ~ ., data = trainSet, num.trees = val)})[3]
+    model <- ranger(SalePrice ~ ., data = trainSet, num.trees = val)
+  })[3]
   runtime_prediction <- system.time({
-  pred <- predict(model, data = testSet)$predictions})[3]
+    pred <- predict(model, data = testSet)$predictions
+  })[3]
   mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
   results <- rbind(results, 
-  data.frame(num.trees = val, 
-             MSE = mse, 
-             runtime_prediction = runtime_prediction, 
-             runtime_training = runtime_training))
+                  data.frame(num.trees = val, 
+                            MSE = mse, 
+                            runtime_prediction = runtime_prediction, 
+                            runtime_training = runtime_training))
 }
 
 # Tuning für mtry
@@ -147,6 +149,8 @@ write.csv(results, file = "result.csv", row.names = FALSE)
 ```
 
 ```{r}
+library(ranger)
+library(caret)
 # Erstellen Sie ein Gitter aller möglichen Kombinationen von Parametern
 paramGrid <- expand.grid(num.trees = num.trees_values,
                          mtry = mtry_values,
@@ -155,42 +159,41 @@ paramGrid <- expand.grid(num.trees = num.trees_values,
                          replace = replace_values)
 
 # Initialisieren Sie ein Dataframe, um die Ergebnisse zu speichern
-results2 <- data.frame()
+results_all_params <- data.frame()
 
 # Trainieren Sie das Modell für jede Kombination von Parametern
 for (i in 1:nrow(paramGrid)) {
   set.seed(124)
-  model <- ranger(SalePrice ~ ., data = trainSet,
-                  num.trees = paramGrid$num.trees[i],
-                  mtry = paramGrid$mtry[i],
-                  sample.fraction = paramGrid$sample.fraction[i],
-                  min.node.size = paramGrid$min.node.size[i],
-                  replace = paramGrid$replace[i])
-  pred <- predict(model, data = testSet)$predictions
+  runtime_training <- system.time({
+    model <- ranger(SalePrice ~ ., data = trainSet,
+                    num.trees = paramGrid$num.trees[i],
+                    mtry = paramGrid$mtry[i],
+                    sample.fraction = paramGrid$sample.fraction[i],
+                    min.node.size = paramGrid$min.node.size[i],
+                    replace = paramGrid$replace[i])
+  })[3]
+  runtime_prediction <- system.time({
+    pred <- predict(model, data = testSet)$predictions
+  })[3]
   mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
-  results2 <- rbind(results2, cbind(paramGrid[i, ], MSE = mse))
+  results_all_params <- rbind(results_all_params, cbind(paramGrid[i, ], MSE = mse, 
+                                                        runtime_training = runtime_training, 
+                                                        runtime_prediction = runtime_prediction))
 }
 
 # Finden Sie die Kombination von Parametern mit dem niedrigsten MSE
-best_params <- results2[which.min(results$MSE), ]
+best_params <- results_all_params[which.min(results$MSE), ]
 print(best_params)
 
 ```
+# best.params = numtrees = 2048, mtry = 2, sample.fraction = 0.1, min.node.size = 1, replace = TRUE
+# MSE = 1009052495
 
 ```{r}
-write.csv(results2, file = "results2.csv", row.names = FALSE)
+write.csv(results_all_params, file = "results_all_params.csv", row.names = FALSE)
 
 ```
 
 ```{r}
-# Tuning für sample.fraction
-for (val in sample.fraction_values) {
-  set.seed(124)
-  model <- ranger(SalePrice ~ ., data = trainSet, sample.fraction = val)
-  pred <- predict(model, data = testSet)$predictions
-  mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
-  results <- rbind(results, data.frame(Parameter = "sample.fraction", Value = val, MSE = mse))
-  print(model)
-}
 
 ```

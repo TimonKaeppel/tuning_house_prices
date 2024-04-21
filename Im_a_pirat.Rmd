@@ -22,9 +22,6 @@ min.node.size: 5 (für Regression)
 replace: FALSE
 
 ```{r}
-library(ranger)
-library(caret)
-
 # Train-Test-Split
 set.seed(124) # Für reproduzierbare Ergebnisse
 trainIndex <- createDataPartition(df$SalePrice, p = 0.8, list = FALSE)
@@ -32,23 +29,26 @@ trainSet <- df[trainIndex, ]
 testSet <- df[-trainIndex, ]
 
 # Initialisieren Sie ein Dataframe, um die Ergebnisse zu speichern
-results <- data.frame(
-  num.trees = numeric(),
-  mtry = numeric(),
-  sample.fraction = numeric(),
-  min.bucket = numeric(),
-  replace = logical(),
 
+#   num.trees = numeric(),
+# mtry = numeric(),
+# sample.fraction = numeric(),
+# min.bucket = numeric(),
+# replace = logical(),
+
+results_tuning <- data.frame(
+  Parameter = character(),
+  Value = numeric(),
   MSE = numeric(),
   runtime_training = numeric(),
   runtime_prediction = numeric()
 )
 
 # Liste der zu testenden Parameterwerte
-num.trees_values <- c(2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048)
-mtry_values <- c(2, 5, 10, 20, 23, 26, 28, 30, 40, 60)
-sample.fraction_values <- seq(0.1, 1, 0.1)
-min.bucket_values <- seq(1, 50, 5)
+num.trees_values <- c(1:150, 256, 512, 1024, 2048)
+mtry_values <- seq(1, 60, 1)
+sample.fraction_values <- seq(0.01, 1, 0.01)
+min.node.size_values <- seq(1, 50, 1)
 replace_values <- c(TRUE, FALSE)
 
 # Tuning für num.trees
@@ -61,8 +61,9 @@ for (val in num.trees_values) {
     pred <- predict(model, data = testSet)$predictions
   })[3]
   mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
-  results <- rbind(results, 
-                  data.frame(num.trees = val, 
+  results_tuning <- rbind(results_tuning, 
+                  data.frame(Parameter= num.trees,
+                            Value = val, 
                             MSE = mse, 
                             runtime_prediction = runtime_prediction, 
                             runtime_training = runtime_training))
@@ -78,8 +79,9 @@ for (val in mtry_values) {
     pred <- predict(model, data = testSet)$predictions
   })[3]
   mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
-  results <- rbind(results, 
-                   data.frame(mtry = val, 
+  results_tuning <- rbind(results_tuning, 
+                   data.frame(Parameter= mtry,
+                              Value = val, 
                               MSE = mse, 
                               runtime_prediction = runtime_prediction, 
                               runtime_training = runtime_training))
@@ -95,25 +97,27 @@ for (val in sample.fraction_values) {
     pred <- predict(model, data = testSet)$predictions
   })[3]
   mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
-  results <- rbind(results, 
-                   data.frame(sample.fractions = val, 
-                              MSE = mse, 
+  results_tuning <- rbind(results_tuning, 
+                   data.frame(Parameter= sample.fractions,
+                              Value = val,
+                              MSE = mse,
                               runtime_prediction = runtime_prediction, 
                               runtime_training = runtime_training))
 }
 
 # Tuning für min.node.size
-for (val in min.bucket_values) {
+for (val in min.node.size_values) {
   set.seed(124)
   runtime_training <- system.time({
-    model <- ranger(SalePrice ~ ., data = trainSet, min.bucket = val)
+    model <- ranger(SalePrice ~ ., data = trainSet, min.node.size =  = val)
   })[3]
   runtime_prediction <- system.time({
     pred <- predict(model, data = testSet)$predictions
   })[3]
   mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
-  results <- rbind(results, 
-                   data.frame(min.bucket = val, 
+  results_tuning <- rbind(results_tuning, 
+                   data.frame(Parameter= min.node.size,
+                              Value = val 
                               MSE = mse, 
                               runtime_prediction = runtime_prediction, 
                               runtime_training = runtime_training))
@@ -129,15 +133,16 @@ for (val in replace_values) {
     pred <- predict(model, data = testSet)$predictions
   })[3]
   mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
-  results <- rbind(results, 
-                   data.frame(replace = val, 
+  results_tuning <- rbind(results_tuning, 
+                   data.frame(Parameter= replace,
+                              Value = val, 
                               MSE = mse, 
                               runtime_prediction = runtime_prediction, 
                               runtime_training = runtime_training))
 }
 
 # Ausgabe der Ergebnisse
-print(results)
+print(results_tuning)
 
 # Ausgabe der besten Werte für jeden Parameter
 #best_values <- aggregate(MSE ~ Parameter, data = results, min)
@@ -145,7 +150,7 @@ print(results)
 ```
 
 ```{r}
-write.csv(results, file = "result.csv", row.names = FALSE)
+write.csv(results, file = "results_solo_with_higher_range.csv", row.names = FALSE)
 ```
 
 ```{r}

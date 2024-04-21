@@ -14,12 +14,14 @@ print(head(df))
 ```{r}
 
 ```
-# Default-Werte für die Parameter des Random Forest-Algorithmus:
+# Default-Values of Random Forests hyperparamters for Regression:
 num.trees: 500
-mtry: sqrt(number of variables) (für Regression) = 8
-sample.fraction: 0.632 (für Regression)
-min.node.size: 5 (für Regression)
+mtry: sqrt(number of variables) (Regression) = 8
+sample.fraction: 0.632 (Regression)
+min.node.size: 5 (Regression)
 replace: FALSE
+
+# Tuning each hyperparamter one by one
 
 ```{r}
 # Train-Test-Split
@@ -62,7 +64,7 @@ for (val in num.trees_values) {
   })[3]
   mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
   results_tuning <- rbind(results_tuning, 
-                  data.frame(Parameter= num.trees,
+                  data.frame(Parameter= "num.trees",
                             Value = val, 
                             MSE = mse, 
                             runtime_prediction = runtime_prediction, 
@@ -80,7 +82,7 @@ for (val in mtry_values) {
   })[3]
   mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
   results_tuning <- rbind(results_tuning, 
-                   data.frame(Parameter= mtry,
+                   data.frame(Parameter= "mtry",
                               Value = val, 
                               MSE = mse, 
                               runtime_prediction = runtime_prediction, 
@@ -98,7 +100,7 @@ for (val in sample.fraction_values) {
   })[3]
   mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
   results_tuning <- rbind(results_tuning, 
-                   data.frame(Parameter= sample.fractions,
+                   data.frame(Parameter= "sample.fraction",
                               Value = val,
                               MSE = mse,
                               runtime_prediction = runtime_prediction, 
@@ -109,15 +111,15 @@ for (val in sample.fraction_values) {
 for (val in min.node.size_values) {
   set.seed(124)
   runtime_training <- system.time({
-    model <- ranger(SalePrice ~ ., data = trainSet, min.node.size =  = val)
+    model <- ranger(SalePrice ~ ., data = trainSet, min.node.size = val)
   })[3]
   runtime_prediction <- system.time({
     pred <- predict(model, data = testSet)$predictions
   })[3]
   mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
   results_tuning <- rbind(results_tuning, 
-                   data.frame(Parameter= min.node.size,
-                              Value = val 
+                   data.frame(Parameter= "min.node.size",
+                              Value = val,
                               MSE = mse, 
                               runtime_prediction = runtime_prediction, 
                               runtime_training = runtime_training))
@@ -134,7 +136,7 @@ for (val in replace_values) {
   })[3]
   mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
   results_tuning <- rbind(results_tuning, 
-                   data.frame(Parameter= replace,
+                   data.frame(Parameter= "replace",
                               Value = val, 
                               MSE = mse, 
                               runtime_prediction = runtime_prediction, 
@@ -150,8 +152,11 @@ print(results_tuning)
 ```
 
 ```{r}
-write.csv(results, file = "results_solo_with_higher_range.csv", row.names = FALSE)
+write.csv(results_tuning, file = "results_solo_with_higher_range.csv", row.names = FALSE)
 ```
+
+
+# Tuning 5 at once 
 
 ```{r}
 library(ranger)

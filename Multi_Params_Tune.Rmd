@@ -37,8 +37,8 @@ min_bucket <- c(1, 5, 10)
 
 grid <- expand.grid(
   num.trees = num_trees,
-  sample.fraction = sample_fraction#,
-  # mtry = mtry,
+  sample.fraction = sample_fraction,
+  mtry = mtry
   # replace = replace,
   # min.bucket = min_bucket
 )
@@ -69,16 +69,19 @@ for (i in 1:nrow(grid)) {
     data = train_set,
     num.trees = grid$num.trees[i],
     sample.fraction = grid$sample.fraction[i],
-    # mtry = grid$mtry[i],
+    mtry = grid$mtry[i]
     # replace = grid$replace[i],
     # min.bucket = grid$min.bucket[i]
   )
   })[3] # [3]rd is the elapsed time
   
+  print(model)
+
   print(paste("Successfully trained hyperparameter combination: ",
               grid$num.trees[i],
-              grid$sample.fraction[i]#,
-              # grid$mtry[i], grid$replace[i],
+              grid$sample.fraction[i],
+              grid$mtry[i]
+              # grid$mtry[i], grid$replace[i]
               # grid$min.bucket[i]
         )
     )
@@ -94,7 +97,7 @@ for (i in 1:nrow(grid)) {
   results <- rbind(results, data.frame(
     num.trees = grid$num.trees[i],
     sample.fraction = grid$sample.fraction[i],
-    # mtry = grid$mtry[i],
+    mtry = grid$mtry[i],
     # replace = grid$replace[i],
     # min.bucket = grid$min.bucket[i],
     mse = mse,

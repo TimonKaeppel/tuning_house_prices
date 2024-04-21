@@ -1,61 +1,197 @@
 # Lade die CSV-Dateien
 
 ```{r}
-
-train <- read.csv("D:/Documents/DHBW Ravensburg/6. Semester/Tuning von Algorithmen/tuning_house_prices/resources/test.csv")
-
-test <- read.csv("D:/Documents/DHBW Ravensburg/6. Semester/Tuning von Algorithmen/tuning_house_prices/resources/test.csv")
-
-solution <- read.csv("D:/Documents/DHBW Ravensburg/6. Semester/Tuning von Algorithmen/tuning_house_prices/resources/solution.csv")
+df <- read.csv("resources/house_prices.csv")
 
 ```
-
 
 # Zeige die ersten paar Zeilen der geladenen Daten an
 
 ```{r}
-print(head(test))
+print(head(df))
 ```
 
 ```{r}
-if (nrow(test) == nrow(solution)) {
-  combined <- merge(test, solution)
-
-  print(head(combined))
-}
-```
-
-```{r}
-data <- rbind(train, test)
-
-print(head(combined))
 
 ```
-
+# Default-Werte für die Parameter des Random Forest-Algorithmus:
+num.trees: 500
+mtry: sqrt(number of variables) (für Regression) = 8
+sample.fraction: 0.632 (für Regression)
+min.node.size: 5 (für Regression)
+replace: FALSE
 
 ```{r}
-install.packages("caret")
-install.packages("randomForest")
-
+library(ranger)
 library(caret)
 
-folds <- 5
+# Train-Test-Split
+set.seed(124) # Für reproduzierbare Ergebnisse
+trainIndex <- createDataPartition(df$SalePrice, p = 0.8, list = FALSE)
+trainSet <- df[trainIndex, ]
+testSet <- df[-trainIndex, ]
 
-trainControl <- trainControl(method = "cv", number = folds)
+# Initialisieren Sie ein Dataframe, um die Ergebnisse zu speichern
+results <- data.frame(
+  num.trees = numeric(),
+  mtry = numeric(),
+  sample.fraction = numeric(),
+  min.bucket = numeric(),
+  replace = logical(),
 
-library(randomForest)
+  MSE = numeric(),
+  runtime_training = numeric(),
+  runtime_prediction = numeric()
+)
 
-# Parameter für den Random Forest
-rfParams <- list(ntree = 500, mtry = 3) # Anzahl der Bäume und Anzahl der Variablen pro Split
+# Liste der zu testenden Parameterwerte
+num.trees_values <- c(2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048)
+mtry_values <- c(2, 5, 10, 20, 23, 26, 28, 30, 40, 60)
+sample.fraction_values <- seq(0.1, 1, 0.1)
+min.bucket_values <- seq(1, 50, 5)
+replace_values <- c(TRUE, FALSE)
 
-# Training mit k-fold Cross-Validation
-rfModel <- train(SalePrice ~ ., data = data, method = "rf", trControl = trainControl, tuneGrid = rfParams)
+# Tuning für num.trees
+for (val in num.trees_values) {
+  set.seed(124)
+  runtime_training <- system.time({
+    model <- ranger(SalePrice ~ ., data = trainSet, num.trees = val)
+  })[3]
+  runtime_prediction <- system.time({
+    pred <- predict(model, data = testSet)$predictions
+  })[3]
+  mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+  results <- rbind(results, 
+                  data.frame(num.trees = val, 
+                            MSE = mse, 
+                            runtime_prediction = runtime_prediction, 
+                            runtime_training = runtime_training))
+}
 
-# Zeige eine Zusammenfassung des trainierten Modells
-print(rfModel)
+# Tuning für mtry
+for (val in mtry_values) {
+  set.seed(124)
+  runtime_training <- system.time({
+    model <- ranger(SalePrice ~ ., data = trainSet, mtry = val)
+  })[3]
+  runtime_prediction <- system.time({
+    pred <- predict(model, data = testSet)$predictions
+  })[3]
+  mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+  results <- rbind(results, 
+                   data.frame(mtry = val, 
+                              MSE = mse, 
+                              runtime_prediction = runtime_prediction, 
+                              runtime_training = runtime_training))
+}
 
-# Zeige die Ergebnisse der k-fold Cross-Validation
-print(rfModel$results)
+# Tuning für sample.fraction
+for (val in sample.fraction_values) {
+  set.seed(124)
+  runtime_training <- system.time({
+    model <- ranger(SalePrice ~ ., data = trainSet, sample.fraction = val)
+  })[3]
+  runtime_prediction <- system.time({
+    pred <- predict(model, data = testSet)$predictions
+  })[3]
+  mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+  results <- rbind(results, 
+                   data.frame(sample.fractions = val, 
+                              MSE = mse, 
+                              runtime_prediction = runtime_prediction, 
+                              runtime_training = runtime_training))
+}
+
+# Tuning für min.node.size
+for (val in min.bucket_values) {
+  set.seed(124)
+  runtime_training <- system.time({
+    model <- ranger(SalePrice ~ ., data = trainSet, min.bucket = val)
+  })[3]
+  runtime_prediction <- system.time({
+    pred <- predict(model, data = testSet)$predictions
+  })[3]
+  mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+  results <- rbind(results, 
+                   data.frame(min.bucket = val, 
+                              MSE = mse, 
+                              runtime_prediction = runtime_prediction, 
+                              runtime_training = runtime_training))
+}
+
+# Tuning für replace
+for (val in replace_values) {
+  set.seed(124)
+  runtime_training <- system.time({
+    model <- ranger(SalePrice ~ ., data = trainSet, replace = val)
+  })[3]
+  runtime_prediction <- system.time({
+    pred <- predict(model, data = testSet)$predictions
+  })[3]
+  mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+  results <- rbind(results, 
+                   data.frame(replace = val, 
+                              MSE = mse, 
+                              runtime_prediction = runtime_prediction, 
+                              runtime_training = runtime_training))
+}
+
+# Ausgabe der Ergebnisse
+print(results)
+
+# Ausgabe der besten Werte für jeden Parameter
+#best_values <- aggregate(MSE ~ Parameter, data = results, min)
+#print(best_values)
+```
+
+```{r}
+write.csv(results, file = "result.csv", row.names = FALSE)
+```
+
+```{r}
+library(ranger)
+library(caret)
+# Erstellen Sie ein Gitter aller möglichen Kombinationen von Parametern
+paramGrid <- expand.grid(num.trees = num.trees_values,
+                         mtry = mtry_values,
+                         sample.fraction = sample.fraction_values,
+                         min.node.size = min.bucket_values,
+                         replace = replace_values)
+
+# Initialisieren Sie ein Dataframe, um die Ergebnisse zu speichern
+results_all_params <- data.frame()
+
+# Trainieren Sie das Modell für jede Kombination von Parametern
+for (i in 1:nrow(paramGrid)) {
+  set.seed(124)
+  runtime_training <- system.time({
+    model <- ranger(SalePrice ~ ., data = trainSet,
+                    num.trees = paramGrid$num.trees[i],
+                    mtry = paramGrid$mtry[i],
+                    sample.fraction = paramGrid$sample.fraction[i],
+                    min.node.size = paramGrid$min.node.size[i],
+                    replace = paramGrid$replace[i])
+  })[3]
+  runtime_prediction <- system.time({
+    pred <- predict(model, data = testSet)$predictions
+  })[3]
+  mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+  results_all_params <- rbind(results_all_params, cbind(paramGrid[i, ], MSE = mse, 
+                                                        runtime_training = runtime_training, 
+                                                        runtime_prediction = runtime_prediction))
+}
+
+# Finden Sie die Kombination von Parametern mit dem niedrigsten MSE
+best_params <- results_all_params[which.min(results$MSE), ]
+print(best_params)
+
+```
+# best.params = numtrees = 2048, mtry = 2, sample.fraction = 0.1, min.node.size = 1, replace = TRUE
+# MSE = 1009052495
+
+```{r}
+write.csv(results_all_params, file = "results_all_params.csv", row.names = FALSE)
+
 ```
 
 ```{r}

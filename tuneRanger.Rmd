@@ -22,7 +22,6 @@ set.seed(069)
 ```
 
 ```{r}
-
 house_prices <- read.csv("./resources/house_prices.csv")
 
 random_indices <- sample(1:nrow(house_prices))
@@ -33,6 +32,30 @@ test_set <- house_prices[-train_index, ]
 
 ```
 
+```{r}
+# house_prices <- read.csv("./resources/house_prices.csv")
+
+# random_indices <- sample(1:nrow(house_prices))
+# house_prices <- house_prices[random_indices, ]
+
+# # Create indices for the training set (80% of the data)
+# train_index <- createDataPartition(
+#     house_prices$SalePrice,
+#     p = 0.8, list = FALSE)
+# train_set <- house_prices[train_index, ] # 80% of the data
+
+# # Remove the training data from the dataset
+# remaining_data <- house_prices[-train_index, ]
+
+# # Create indices for the validation set
+# val_index <- createDataPartition(
+#     remaining_data$SalePrice,
+#     p = 0.5, list = FALSE)
+# val_set <- remaining_data[val_index, ] # 10% of the data
+
+# # The remaining data is the test set (10% of the total data)
+# test_set <- remaining_data[-val_index, ] # 10% of the data
+```
 
 ```{r}
 # Convert all character columns to factors 
@@ -51,45 +74,77 @@ train_task
 
 ```{r}
 # Define the hyperparameter boundaries
-hyperparameters <- list(
- num.trees = c(2, 500),
- mtry = c(1, 60),
- sample.fraction = c(0.1, 1),
- min.node.size = c(1, 50),
- replace = c(TRUE, FALSE)
-)
+# hyperparameters <- list(
+#  num.trees = c(2, 500),
+#  mtry = c(1, 60),
+#  sample.fraction = c(0.1, 1),
+#  min.node.size = c(1, 50),
+#  replace = c(TRUE, FALSE)
+# )
+```
 
+```{r}
 # Perform the tuning with replace = TRUE
 tuning_results_true <- tuneRanger(
  task = train_task,
  measure = list(mse), # Use mean squared error as the performance measure
- iters = 20, # Number of iterations
+ iters = 30, # Number of iterations
  num.threads = 1, # Number of threads
- parameters = list(replace = TRUE),
- tune.parameters = c("num.trees", "mtry", "min.node.size", "sample.fraction"),
+ num.trees = 500, # Number of trees
+ parameters = list(replace = TRUE, respect.unordered.factors = "order"),
+ tune.parameters = c("mtry", "min.node.size", "sample.fraction"), # c("num.trees", "mtry", "min.node.size", "sample.fraction"),
  save.file.path = NULL, # Do not save interim results
- build.final.model = FALSE, # Build the final model
+ build.final.model = TRUE, # Build the final model
  show.info = TRUE # Show verbose output
 )
+final_model_true <- tuning_results_true$final.model
 print(tuning_results_true)
+```
 
+```{r}
 # Perform the tuning with replace = FALSE
 tuning_results_false <- tuneRanger(
  task = train_task,
  measure = list(mse), # Use mean squared error as the performance measure
- iters = 20, # Number of iterations
+ iters = 30, # Number of iterations
  num.threads = 1, # Number of threads
- parameters = list(replace = FALSE),
- tune.parameters = c("num.trees", "mtry", "min.node.size", "sample.fraction"),
+ num.trees = 500, # Number of trees
+ parameters = list(replace = FALSE, respect.unordered.factors = "order"),
+ tune.parameters = c("mtry", "min.node.size", "sample.fraction"), # c("num.trees", "mtry", "min.node.size", "sample.fraction"),
  save.file.path = NULL, # Do not save interim results
- build.final.model = FALSE, # Build the final model
+ build.final.model = TRUE, # Build the final model
  show.info = TRUE # Show verbose output
 )
+final_model_false <- tuning_results_false$final.model
 print(tuning_results_false)
+```
 
+```{r}
 # Compare the results
-compare_results <- rbind(tuning_results_true$results, tuning_results_false$results)
+compare_results <- rbind(
+    tuning_results_true$results,
+    tuning_results_false$results
+    )
+# write.csv(compare_results, file = "./resources/results_powerrangers.csv")
+write.csv(tuning_results_true$results, file = "./resources/results_powerrangers_replace_true.csv")
+write.csv(tuning_results_false$results, file = "./resources/results_powerrangers_replace_false.csv")
+```
 
+```{r}
+# Print the column names of the 'res' dataframe
+tuning_results_false$results
+```
+
+```{r}
+predictions <- predict(final_model_true, test_set[, colnames(test_set) != "SalePrice"])
+
+runtime_prediction <- system.time({
+    pred <- predict(model, test_set[, colnames(test_set) != "SalePrice"])
+    errors <- pred$predictions - test_set$SalePrice
+    squared_errors <- errors^2
+    mse <- mean(squared_errors)
+})[3] # [3]rd element is the elapsed time
+print(mse)
 ```
 
 

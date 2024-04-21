@@ -1,0 +1,455 @@
+---
+title: "DirectL with Randomization"
+author: "Anna"
+date: "2023-05-24"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+DirectL mit Randomization Betrachtung -> wieso untersch. Werte bei Betrachtung
+DirectL und RandomSearch Vergleich 
+Parameterangleich von DirectL
+Wie gut fitted DirectL die KSVM bei Streuung in Daten? -> Vergleich mit RandomSearch
+Andere Funktionen als RatrigenFunction (?)
+
+
+x, y - Training
+x_tes, y_test - Test
+
+```{r setup, include=FALSE}
+set.seed(1)
+n <- 70
+lower <- c(-2.5,-1.5)
+upper <- c(1.5,2.5)
+x <- cbind(runif(n,lower[1],upper[1]),runif(n,lower[2],upper[2]))
+x_test <- cbind(runif(n,lower[1],upper[1]),runif(n,lower[2],upper[2]))
+# Rastrigin function
+f <- function(x){
+  20 + x[,1]^2 + x[,2]^2 - 10*(cos(2*pi*x[,1]) + cos(2*pi*x[,2]))
+}
+y <- f(x)
+y_test <- f(x_test)
+```
+
+```{r}
+
+df <- data.frame(x=x,y=y)
+require(ggplot2)
+require(viridis)
+ggplot(data=df,aes(x=x.1,y=x.2,colour=y)) +
+  geom_point() +
+  scale_colour_viridis(option="A")
+
+```
+
+
+
+
+```{r}
+require(kernlab)
+
+set.seed(1)
+model <- ksvm(y~x)
+
+
+nplot_dim <- 100
+
+xplot <- expand.grid(seq(from=lower[1],to=upper[1],length.out=nplot_dim),
+               seq(from=lower[2],to=upper[2],length.out=nplot_dim))
+
+yplot <- predict(model,as.matrix(xplot))
+png("Ergebnisse/ksvmNoOpt.png")
+df <- data.frame(x.1=xplot$Var1,x.2=xplot$Var2,y=yplot)
+ggplot(data=df,aes(x=x.1,y=x.2,z=y)) +
+  geom_contour_filled(bins=50,show.legend=FALSE) +
+  scale_fill_viridis(option="A",discrete = T)
+```
+
+```{r}
+png("Ergebnisse/rastrigin_plot.png")
+yplot2 <- f(xplot)
+df <- data.frame(x.1=xplot$Var1,x.2=xplot$Var2,y=yplot2)
+ggplot(data=df,aes(x=x.1,y=x.2,z=y)) +
+  geom_contour_filled(bins=50,show.legend=FALSE) +
+  scale_fill_viridis(option="A",discrete = T)
+```
+
+```{r}
+att <- attributes(model)
+ksvmError <- att$error
+# att$obj
+print(ksvmError)
+```
+
+
+
+
+Lets go optimization:
+
+DirectL
+Start by understanding the valid range of values for each hyperparameter. For example, in the case of C, it is typically a positive real number representing the inverse of the regularization strength. For tol, it represents the tolerance for convergence, usually a small positive value. Epsilon is a parameter specific to the SVM algorithm and depends on the kernel being used.
+
+C sollte auf jeden Fall groß werden
+```{r}
+# nloptr.print.options()
+```
+
+
+```{r}
+require(nloptr)
+require(kernlab)
+
+
+# Function for fitting the ksvm
+fun_evals <- function(params, ...) {
+  set.seed(753) # ObjFun.-Seed
+  C <- params[1]
+  epsilon <- params[2]
+  tol <- params[3]
+  sacher <- ksvm(y ~ x, C = C, epsilon = epsilon, tol = tol)
+  svm_attributes <- attributes(sacher)
+  svm_error <- svm_attributes$error
+  return(svm_error)
+}
+
+max_iter = 500
+set.seed(1) #Opt.-Seed
+# Implement directL # c(1000, 1, 0.001), 
+res <- directL(fun_evals, lower = c(1, 0.00000001, 0.00000001), upper =  c(1000, 1, 0.001), randomized = TRUE, control = list( maxeval = max_iter)) # , ranseed = 1 von nl.opts funktioniert nicht, interne Randomisierung von directL kann nicht kontrolliert werden..
+res
+```
+
+```{r}
+# Testen der neuen DIRECTL-Werte mit einer neuen KSVM
+set.seed(3213)
+# model <- ksvm(y~x, C = opt_params[1], epsilon = opt_params[2], tol = opt_params[3])
+model <- ksvm(y~x, C = 9.981130e+02, epsilon =  2.973722e-01, tol = 9.607544e-04)
+print(attributes(model)$error)
+nplot_dim <- 100
+
+xplot <- expand.grid(seq(from=lower[1],to=upper[1],length.out=nplot_dim),
+               seq(from=lower[2],to=upper[2],length.out=nplot_dim))
+yplot <- predict(model,as.matrix(xplot))
+png("Ergebnisse/random.png")
+df <- data.frame(x.1=xplot$Var1,x.2=xplot$Var2,y=yplot)
+ggplot(data=df,aes(x=x.1,y=x.2,z=y)) +
+  geom_contour_filled(bins=50,show.legend=FALSE) +
+  scale_fill_viridis(option="A",discrete = T)
+
+```
+
+
+```{r}
+# Error for DirectL
+y_pred <- predict(model, x_test)
+
+att <- attributes(model)
+att$error
+att$obj
+
+```
+
+
+Values for Random Search:
+
+```{r}
+
+uniformRandomSearch <- function (x = NULL, fun, lower, upper, 
+                                 control = list(), ...) {
+  con <- list(funEvals = 500) # default limit on function evaluations
+  con[names(control)] <- control
+  control <- con  
+  
+  npar <- length(lower) # number of parameters
+  xtest <- matrix(runif(control$funEvals*npar,
+                        lower,upper),,npar,byrow=TRUE)
+  ytest <- matrix(fun(xtest, ...), 1) 
+  ## important note: ... are arguments passed
+  ## from the calling function directly to fun 
+  ## (not touched by uniformRandomSearch)
+  best_index <- which.min(ytest)
+  print(xtest[best_index,])
+  list(
+    xbest = xtest[best_index,],
+    ybest = ytest[best_index],
+    count = nrow(xtest)
+  )
+}
+
+```
+
+```{r}
+#lower = c(1, 0, 0), upper = c(100000000, 1, 1)
+fun <- function(pars){
+  set.seed(12)
+  model <- ksvm(y~x,
+                C=pars[1],
+                epsilon=pars[2],
+                tol=pars[3])
+  att <- attributes(model)
+  att$error
+}
+afun <- function(x){
+  apply(x,1,fun)
+}
+set.seed(2)
+res <- uniformRandomSearch(fun = afun,
+                    lower = c(1, 0.00000001, 0.00000001), 
+                    upper =  c(1000, 1, 0.001), # c(1000, 1, 0.001),
+                    control=list(funEvals=100))
+
+res
+```
+
+```{r}
+firstValue <- res$xbest[1]
+print(firstValue)
+```
+
+```{r}
+# Testen der neuen UniformRandomSearch-Werte mit einer neuen KSVM
+#set.seed(1)
+modelRS <- ksvm(y~x, C = res$xbest[1], epsilon = res$xbest[2], tol = res$xbest[3])
+
+nplot_dim <- 100
+
+xplot <- expand.grid(seq(from=lower[1],to=upper[1],length.out=nplot_dim),
+               seq(from=lower[2],to=upper[2],length.out=nplot_dim))
+yplot <- predict(modelRS,as.matrix(xplot))
+# png("Ergebnisse/rdmSearch.png")
+df <- data.frame(x.1=xplot$Var1,x.2=xplot$Var2,y=yplot)
+ggplot(data=df,aes(x=x.1,y=x.2,z=y)) +
+  geom_contour_filled(bins=50,show.legend=FALSE) +
+  scale_fill_viridis(option="A",discrete = T)
+
+```
+
+
+```{r}
+# error for Uniform Random search
+y_pred <- predict(modelRS, x_test)
+
+att <- attributes(modelRS)
+att$error
+att$obj
+
+```
+
+
+
+
+Use grid search optimize the num_iterations constraint params for DirectL to look for in
+```{r}
+# Beobachtung: Bei 10 Iterationen schlechter Wert (ca 100 - 200 Minuspunkte im error)
+# Beobachtung: Bei großen Grenzwerten unten und oben schlechtere Ergebnisse
+# Wenn untere Grenze keine Nuller beinhaltet besonders Gute Modelle
+library(nloptr)
+library(kernlab)
+
+train_and_evaluate_directL <- function(epsilon_values_lower1, epsilon_values_lower2, C_values_lower1, C_values_lower2, tol_values_lower1, tol_values_lower2, epsilon_values_upper1, epsilon_values_upper2, C_values_upper1, C_values_upper2, tol_values_upper1, tol_values_upper2, max_runs) {
+  # Initialize log
+  xlogGlobal <- NULL
+
+  # Function to evaluate the SVM model with given parameter values
+  evaluate_svm <- function(params) {
+    # Set seed for reproducibility (if desired)
+    # set.seed(1)
+    
+    model <- ksvm(y ~ x, epsilon = params[1], C = params[2], tol = params[3])
+    # Get training data error
+    att <- attributes(model)
+    error_rate <- att$error
+    return(error_rate)
+  }
+
+  best_performance <- -Inf # -Inf
+  best_parameters <- NULL
+
+  for (i in 1:max_runs) {
+    epsilon_lower <- runif(1, epsilon_values_lower1, epsilon_values_lower2)
+    C_lower <- runif(1, C_values_lower1, C_values_lower2)
+    tol_lower <- runif(1, tol_values_lower1, tol_values_lower2)
+    epsilon_upper <- runif(1, epsilon_values_upper1, epsilon_values_upper2)
+    C_upper <- runif(1, C_values_upper1, C_values_upper2)
+    tol_upper <- runif(1, tol_values_upper1, tol_values_upper2)
+
+    # Run directL with new constraints
+    max_iter <- 2
+    all <- directL(evaluate_svm, lower = c(epsilon_lower, C_lower, tol_lower), upper = c(epsilon_upper, C_upper, tol_upper), randomized = TRUE, control = list(maxeval = max_iter))
+    
+    # Extract optimal parameters from directL result
+    opt_params <- all$par
+    optepsilon <- opt_params[1]
+    optC <- opt_params[2]
+    opttol <- opt_params[3]
+    
+    # Train the KSVM with optimized DirectL-optimized values to get the result
+    result <- evaluate_svm(c(optepsilon, optC, opttol))
+
+    # Log the parameter values
+    xlogGlobal <- rbind(xlogGlobal, c(optepsilon, optC, opttol))
+    print(result)
+    
+    if (result > best_performance) {
+      best_performance <- result
+      best_parameters <- c(optepsilon, optC, opttol)
+    }
+  }
+
+  return(list(best_parameters = best_parameters, best_performance = best_performance, xlog = xlogGlobal))
+}
+
+# Parameter ranges
+epsilon_values_lower1 <- 0.01
+epsilon_values_lower2 <- 0.1
+C_values_lower1 <- 1
+C_values_lower2 <- 100
+tol_values_lower1 <- 0.0001
+tol_values_lower2 <- 0.01
+epsilon_values_upper1 <- 0.2
+epsilon_values_upper2 <- 0.5
+C_values_upper1 <- 10000
+C_values_upper2 <- 100000000
+tol_values_upper1 <- 0.6
+tol_values_upper2 <- 1
+max_runs <- 10
+
+# Run optimization
+result <- train_and_evaluate_directL(
+  epsilon_values_lower1 = epsilon_values_lower1,
+  C_values_lower1 = C_values_lower1,
+  tol_values_lower1 = tol_values_lower1,
+  epsilon_values_upper1 = epsilon_values_upper1,
+  C_values_upper1 = C_values_upper1,
+  tol_values_upper1 = tol_values_upper1,
+  epsilon_values_lower2 = epsilon_values_lower2,
+  C_values_lower2 = C_values_lower2,
+  tol_values_lower2 = tol_values_lower2,
+  epsilon_values_upper2 = epsilon_values_upper2,
+  C_values_upper2 = C_values_upper2,
+  tol_values_upper2 = tol_values_upper2,
+  max_runs = max_runs
+)
+
+# Retrieve results
+best_parameters <- result$best_parameters
+best_performance <- result$best_performance
+xlog <- result$xlog
+
+print(best_parameters)
+print(best_performance)
+print(xlog)
+
+
+
+```
+Die Werte für DirectL scheinen für 500 Durchläufe nun differenzierter, mal schauen, inwieweit die DirectL Algorithmuswerte sich verbessern konnten
+
+```{r}
+
+```
+
+
+Testen der neuen KSVM mit den über GridSearch und DirectL gefundenen Werte
+```{r}
+#set.seed(1)
+modelDR <- ksvm(y~x, C = best_parameters[2], epsilon = best_parameters[1], tol = best_parameters[3])
+
+nplot_dim <- 100
+
+xplot <- expand.grid(seq(from=lower[1],to=upper[1],length.out=nplot_dim),
+               seq(from=lower[2],to=upper[2],length.out=nplot_dim))
+yplot <- predict(modelDR,as.matrix(xplot))
+
+df <- data.frame(x.1=xplot$Var1,x.2=xplot$Var2,y=yplot)
+ggplot(data=df,aes(x=x.1,y=x.2,z=y)) +
+  geom_contour_filled(bins=50,show.legend=FALSE) +
+  scale_fill_viridis(option="A",discrete = T)
+
+```
+
+```{r}
+# error
+y_pred <- predict(modelDR, x_test)
+
+att <- attributes(modelDR)
+att$error
+att$obj
+```
+Leck mich am Züggerli. Die Werte sind ja mal übelst gut.
+
+Contour Plot for the DirectL Optimization
+```{r}
+print(xlog)
+```
+
+```{r}
+i <- min(200, nrow(xlog))  # Adjust i to the minimum of 200 or the number of rows in xlog
+
+# Plot
+x1plot <- seq(lower[1], upper[1], length.out = 100)
+x2plot <- seq(lower[2], upper[2], length.out = 100)
+
+# Calculate the values for the contour plot based on your function
+xtmp <- xlog[1:i, 2:3]  # Use column indices 2 and 3 for xlog values
+
+# Replace with your own calculation based on the evaluation results of your algorithm ---> ???
+z <- outer(x1plot, x2plot, function(x1, x2) f(matrix(c(x1, x2), ncol = 2)))
+
+par(mgp = c(1.7, 0.8, 0), mar = c(3, 3, 1, 1))
+plot(1, type = "n", yaxs = "i", xaxs = "i", xlab = "x1", ylab = "x2",
+     xlim = range(x1plot), ylim = range(x2plot), main = "")
+
+nlevs <- 25
+levs <- pretty(range(z), nlevs)
+nlevs <- length(levs)
+
+image(x1plot, x2plot, z, col = colorRampPalette(c("darkblue", "white", "darkred"))(nlevs - 1), add = TRUE)
+par(xpd = NA)
+contour(x1plot, x2plot, z, drawlabels = FALSE, method = "edge", add = TRUE, lty = 1, nlevels = nlevs)
+par(xpd = FALSE)
+xtmp <- xlog[, c(1, 2)]  # Adjust the column indices based on your parameter vector
+points(xtmp[, 1], xtmp[, 2], col = "black", pch = 3, lwd = 2)
+points(xtmp[, 1], xtmp[, 2], col = "white", pch = 4, lwd = 2)
+
+```
+
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+                 
+                 
+```{r}
+
+```
+
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+
+```
+
+
+
+```{r}
+
+```

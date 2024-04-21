@@ -1,0 +1,98 @@
+# Lade die CSV-Dateien
+
+```{r}
+# install.packages("ranger")
+# install.packages("dplyr")
+# install.packages("caret")
+# install.packages("tuneRanger")
+# install.packages("mlr")
+# install.packages("fastDummies")
+
+
+library(ranger)
+library(caret)
+library(dplyr)
+library(tuneRanger)
+library(mlr)
+library(fastDummies)
+```
+
+```{r}
+set.seed(069)
+```
+
+```{r}
+
+house_prices <- read.csv("./resources/house_prices.csv")
+
+random_indices <- sample(1:nrow(house_prices))
+house_prices <- house_prices[random_indices, ]
+train_index <- createDataPartition(house_prices$SalePrice, p = 0.8, list = FALSE)
+train_set <- house_prices[train_index, ] # 80% of the datase
+test_set <- house_prices[-train_index, ]
+
+```
+
+
+```{r}
+# Convert all character columns to factors 
+# (same method as default automatic implementation in ranger)
+train_set[] <- lapply(train_set, function(x) {
+ if (is.character(x)) {
+    factor(x, levels = unique(x), ordered = FALSE)
+ } else {
+    x
+ }
+})
+
+train_task <- makeRegrTask(data = train_set, target = "SalePrice")
+train_task
+```
+
+```{r}
+# Define the hyperparameter boundaries
+hyperparameters <- list(
+ num.trees = c(2, 500),
+ mtry = c(1, 60),
+ sample.fraction = c(0.1, 1),
+ min.node.size = c(1, 50),
+ replace = c(TRUE, FALSE)
+)
+
+# Perform the tuning with replace = TRUE
+tuning_results_true <- tuneRanger(
+ task = train_task,
+ measure = list(mse), # Use mean squared error as the performance measure
+ iters = 20, # Number of iterations
+ num.threads = 1, # Number of threads
+ parameters = list(replace = TRUE),
+ tune.parameters = c("num.trees", "mtry", "min.node.size", "sample.fraction"),
+ save.file.path = NULL, # Do not save interim results
+ build.final.model = FALSE, # Build the final model
+ show.info = TRUE # Show verbose output
+)
+print(tuning_results_true)
+
+# Perform the tuning with replace = FALSE
+tuning_results_false <- tuneRanger(
+ task = train_task,
+ measure = list(mse), # Use mean squared error as the performance measure
+ iters = 20, # Number of iterations
+ num.threads = 1, # Number of threads
+ parameters = list(replace = FALSE),
+ tune.parameters = c("num.trees", "mtry", "min.node.size", "sample.fraction"),
+ save.file.path = NULL, # Do not save interim results
+ build.final.model = FALSE, # Build the final model
+ show.info = TRUE # Show verbose output
+)
+print(tuning_results_false)
+
+# Compare the results
+compare_results <- rbind(tuning_results_true$results, tuning_results_false$results)
+
+```
+
+
+```{r}
+# write.csv(results, file = "./resources/results.csv")
+```

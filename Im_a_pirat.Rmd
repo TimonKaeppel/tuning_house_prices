@@ -156,6 +156,259 @@ write.csv(results_tuning, file = "results_solo_with_higher_range.csv", row.names
 ```
 
 
+# Tuning pairwise hyperparameters
+```{r}
+pairwise_results <- data.frame()
+
+# Tuning num.trees and mtry
+for (i in 1:length(num.trees_values)) {
+  for (j in 1:length(mtry_values)) {
+    set.seed(124)
+    runtime_training <- system.time({
+      model <- ranger(SalePrice ~ ., data = trainSet,
+                      num.trees = num.trees_values[i],
+                      mtry = mtry_values[j])
+    })[3]
+    runtime_prediction <- system.time({
+      pred <- predict(model, data = testSet)$predictions
+    })[3]
+    mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+    pairwise_results <- rbind(pairwise_results, 
+                              data.frame(Parameter1 = "num.trees",
+                                         Value1 = num.trees_values[i],
+                                         Parameter2 = "mtry",
+                                         Value2 = mtry_values[j],
+                                         MSE = mse,
+                                         runtime_training = runtime_training,
+                                         runtime_prediction = runtime_prediction))
+  }
+}
+
+# Tuning num.trees and sample.fraction
+for (i in 1:length(num.trees_values)) {
+  for (j in 1:length(sample.fraction_values)) {
+    set.seed(124)
+    runtime_training <- system.time({
+      model <- ranger(SalePrice ~ ., data = trainSet,
+                      num.trees = num.trees_values[i],
+                      sample.fraction = sample.fraction_values[j])
+    })[3]
+    runtime_prediction <- system.time({
+      pred <- predict(model, data = testSet)$predictions
+    })[3]
+    mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+    pairwise_results <- rbind(pairwise_results, 
+                              data.frame(Parameter1 = "num.trees",
+                                         Value1 = num.trees_values[i],
+                                         Parameter2 = "sample.fraction",
+                                         Value2 = sample.fraction_values[j],
+                                         MSE = mse,
+                                         runtime_training = runtime_training,
+                                         runtime_prediction = runtime_prediction))
+  }
+}
+
+# Tuning num.trees and min.node.size
+for (i in 1:length(num.trees_values)) {
+  for (j in 1:length(min.node.size_values)) {
+    set.seed(124)
+    runtime_training <- system.time({
+      model <- ranger(SalePrice ~ ., data = trainSet,
+                      num.trees = num.trees_values[i],
+                      min.node.size = min.node.size_values[j])
+    })[3]
+    runtime_prediction <- system.time({
+      pred <- predict(model, data = testSet)$predictions
+    })[3]
+    mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+    pairwise_results <- rbind(pairwise_results, 
+                              data.frame(Parameter1 = "num.trees",
+                                         Value1 = num.trees_values[i],
+                                         Parameter2 = "min.node.size",
+                                         Value2 = min.node.size_values[j],
+                                         MSE = mse,
+                                         runtime_training = runtime_training,
+                                         runtime_prediction = runtime_prediction))
+  }
+}
+
+# Tuning num.trees and replace
+for (i in 1:length(num.trees_values)) {
+  for (j in 1:length(replace_values)) {
+    set.seed(124)
+    runtime_training <- system.time({
+      model <- ranger(SalePrice ~ ., data = trainSet,
+                      num.trees = num.trees_values[i],
+                      replace = replace_values[j])
+    })[3]
+    runtime_prediction <- system.time({
+      pred <- predict(model, data = testSet)$predictions
+    })[3]
+    mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+    pairwise_results <- rbind(pairwise_results, 
+                              data.frame(Parameter1 = "num.trees",
+                                         Value1 = num.trees_values[i],
+                                         Parameter2 = "replace",
+                                         Value2 = replace_values[j],
+                                         MSE = mse,
+                                         runtime_training = runtime_training,
+                                         runtime_prediction = runtime_prediction))
+  }
+}
+
+# Tuning mtry and sample.fraction
+for (i in 1:length(mtry_values)) {
+  for (j in 1:length(sample.fraction_values)) {
+    set.seed(124)
+    runtime_training <- system.time({
+      model <- ranger(SalePrice ~ ., data = trainSet,
+                      mtry = mtry_values[i],
+                      sample.fraction = sample.fraction_values[j])
+    })[3]
+    runtime_prediction <- system.time({
+      pred <- predict(model, data = testSet)$predictions
+    })[3]
+    mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+    pairwise_results <- rbind(pairwise_results, 
+                              data.frame(Parameter1 = "mtry",
+                                         Value1 = mtry_values[i],
+                                         Parameter2 = "sample.fraction",
+                                         Value2 = sample.fraction_values[j],
+                                         MSE = mse,
+                                         runtime_training = runtime_training,
+                                         runtime_prediction = runtime_prediction))
+  }
+}
+
+# Tuning mtry and min.node.size
+for (i in 1:length(mtry_values)) {
+  for (j in 1:length(min.node.size_values)) {
+    set.seed(124)
+    runtime_training <- system.time({
+      model <- ranger(SalePrice ~ ., data = trainSet,
+                      mtry = mtry_values[i],
+                      min.node.size = min.node.size_values[j])
+    })[3]
+    runtime_prediction <- system.time({
+      pred <- predict(model, data = testSet)$predictions
+    })[3]
+    mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+    pairwise_results <- rbind(pairwise_results, 
+                              data.frame(Parameter1 = "mtry",
+                                         Value1 = mtry_values[i],
+                                         Parameter2 = "min.node.size",
+                                         Value2 = min.node.size_values[j],
+                                         MSE = mse,
+                                         runtime_training = runtime_training,
+                                         runtime_prediction = runtime_prediction))
+  }
+}
+
+# Tuning mtry and replace
+for (i in 1:length(mtry_values)) {
+  for (j in 1:length(replace_values)) {
+    set.seed(124)
+    runtime_training <- system.time({
+      model <- ranger(SalePrice ~ ., data = trainSet,
+                      mtry = mtry_values[i],
+                      replace = replace_values[j])
+    })[3]
+    runtime_prediction <- system.time({
+      pred <- predict(model, data = testSet)$predictions
+    })[3]
+    mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+    pairwise_results <- rbind(pairwise_results, 
+                              data.frame(Parameter1 = "mtry",
+                                         Value1 = mtry_values[i],
+                                         Parameter2 = "replace",
+                                         Value2 = replace_values[j],
+                                         MSE = mse,
+                                         runtime_training = runtime_training,
+                                         runtime_prediction = runtime_prediction))
+  }
+}
+
+# Tuning sample.fraction and min.node.size
+for (i in 1:length(sample.fraction_values)) {
+  for (j in 1:length(min.node.size_values)) {
+    set.seed(124)
+    runtime_training <- system.time({
+      model <- ranger(SalePrice ~ ., data = trainSet,
+                      sample.fraction = sample.fraction_values[i],
+                      min.node.size = min.node.size_values[j])
+    })[3]
+    runtime_prediction <- system.time({
+      pred <- predict(model, data = testSet)$predictions
+    })[3]
+    mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+    pairwise_results <- rbind(pairwise_results, 
+                              data.frame(Parameter1 = "sample.fraction",
+                                         Value1 = sample.fraction_values[i],
+                                         Parameter2 = "min.node.size",
+                                         Value2 = min.node.size_values[j],
+                                         MSE = mse,
+                                         runtime_training = runtime_training,
+                                         runtime_prediction = runtime_prediction))
+  }
+}
+
+# Tuning sample.fraction and replace
+for (i in 1:length(sample.fraction_values)) {
+  for (j in 1:length(replace_values)) {
+    set.seed(124)
+    runtime_training <- system.time({
+      model <- ranger(SalePrice ~ ., data = trainSet,
+                      sample.fraction = sample.fraction_values[i],
+                      replace = replace_values[j])
+    })[3]
+    runtime_prediction <- system.time({
+      pred <- predict(model, data = testSet)$predictions
+    })[3]
+    mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+    pairwise_results <- rbind(pairwise_results, 
+                              data.frame(Parameter1 = "sample.fraction",
+                                         Value1 = sample.fraction_values[i],
+                                         Parameter2 = "replace",
+                                         Value2 = replace_values[j],
+                                         MSE = mse,
+                                         runtime_training = runtime_training,
+                                         runtime_prediction = runtime_prediction))
+  }
+}
+
+# Tuning min.node.size and replace
+for (i in 1:length(min.node.size_values)) {
+  for (j in 1:length(replace_values)) {
+    set.seed(124)
+    runtime_training <- system.time({
+      model <- ranger(SalePrice ~ ., data = trainSet,
+                      min.node.size = min.node.size_values[i],
+                      replace = replace_values[j])
+    })[3]
+    runtime_prediction <- system.time({
+      pred <- predict(model, data = testSet)$predictions
+    })[3]
+    mse <- mean((pred - testSet$SalePrice)^2) # Berechnung des MSE
+    pairwise_results <- rbind(pairwise_results, 
+                              data.frame(Parameter1 = "min.node.size",
+                                         Value1 = min.node.size_values[i],
+                                         Parameter2 = "replace",
+                                         Value2 = replace_values[j],
+                                         MSE = mse,
+                                         runtime_training = runtime_training,
+                                         runtime_prediction = runtime_prediction))
+  }
+}
+
+# Ausgabe der Ergebnisse
+print(pairwise_results)
+
+```
+
+```{r}
+write.csv(pairwise_results, file = "results_pairwise.csv", row.names = FALSE)
+```
+
 # Tuning 5 at once 
 
 ```{r}

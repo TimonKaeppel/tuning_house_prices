@@ -458,5 +458,25 @@ write.csv(results_all_params, file = "results_all_params.csv", row.names = FALSE
 ```
 
 ```{r}
-
+uniformRandomSearch <- function (x = NULL, fun, lower, upper, 
+                                 control = list(), ...) {
+  con <- list(funEvals = 500) # default limit on function evaluations
+  con[names(control)] <- control
+  control <- con  
+  
+  npar <- length(lower) # number of parameters
+  xtest <- matrix(runif(control$funEvals*npar,
+                        lower,upper),,npar,byrow=TRUE)
+  ytest <- matrix(fun(xtest, ...), 1) 
+  ## important note: ... are arguments passed
+  ## from the calling function directly to fun 
+  ## (not touched by uniformRandomSearch)
+  best_index <- which.min(ytest)
+  print(xtest[best_index,])
+  list(
+    xbest = xtest[best_index,],
+    ybest = ytest[best_index],
+    count = nrow(xtest)
+  )
+}
 ```

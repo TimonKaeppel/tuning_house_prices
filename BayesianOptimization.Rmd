@@ -1,0 +1,77 @@
+```{r}
+library(caret)
+library(rBayesianOptimization)
+```
+
+```{r}
+set.seed(069)
+```
+
+```{r}
+house_prices <- read.csv("./resources/house_prices.csv")
+
+random_indices <- sample(1:nrow(house_prices))
+house_prices <- house_prices[random_indices, ]
+train_index <- createDataPartition(house_prices$SalePrice, p = 0.8, list = FALSE)
+train_set <- house_prices[train_index, ] # 80% of the datase
+test_set <- house_prices[-train_index, ]
+
+```
+
+```{r}
+# Define the objective function
+objective_function <- function(num.trees, mtry, sample.fraction, min.node.size, replace) {
+  # Convert replace to logical
+  replace <- replace > 0.5
+
+  # Train the model
+  model <- ranger::ranger(
+    formula = SalePrice ~ .,
+    data = train_set,
+    num.trees = round(num.trees),
+    mtry = round(mtry),
+    sample.fraction = sample.fraction,
+    min.node.size = round(min.node.size),
+    replace = replace
+  )
+
+  # Make predictions and calculate the mean squared error
+  pred <- predict(model, test_set[, colnames(test_set) != "SalePrice"])
+  errors <- pred$predictions - test_set$SalePrice
+  squared_errors <- errors^2
+  mse <- mean(squared_errors)
+
+  # Return the negative mean squared error because the optimization function tries to maximize the objective function
+  return(list(Score = -mse, Pred = pred$predictions))
+}
+
+# Define the hyperparameter boundaries
+hyperparameters <- list(
+  num.trees = c(2, 500),
+  mtry = c(1, 60),
+  sample.fraction = c(0.1, 1),
+  min.node.size = c(1, 50),
+  replace = c(0, 1)  # Use 0 and 1 for FALSE and TRUE because the optimization function expects numeric boundaries
+)
+
+# Perform the tuning
+tuning_results <- BayesianOptimization(
+  FUN = objective_function,
+  bounds = hyperparameters,
+  init_points = 10,  # Number of randomly chosen points to sample the target function before Bayesian Optimization
+  n_iter = 50,  # Number of iterations of Bayesian Optimization
+  acq = "ucb",  # Acquisition function
+  kappa = 2.576,  # Exploration parameter for the acquisition function
+  eps = 0.0,  # Minimum improvement to continue the optimization
+  verbose = TRUE,
+)
+
+# Print the tuning results
+print(tuning_results)
+
+```
+
+```{r}
+write.csv(tuning_results$History, file = "./resources/results_all_search_algo/tuning_results.csv")
+```
+

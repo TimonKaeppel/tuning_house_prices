@@ -8,23 +8,158 @@
 library(ranger)
 library(caret)
 library(dplyr)
+
+house_prices <- read.csv("resources/house_prices.csv")
 ```
 
 ```{r}
-set.seed(069)
+set.seed(124)
+```
+
+# Cross-Validation plus Tuning with Random Search all parameters
+
+```{r}
+# Define the boundaries for RandomSearch
+num_trees_lower <- 2
+num_trees_upper <- 2048
+mtry_lower <- 1
+mtry_upper <- 60
+sample_fraction_lower <- 0.1
+sample_fraction_upper <- 1
+min_node_size_lower <- 1
+min_node_size_upper <- 50
+replace_lower <- FALSE
+replace_upper <- TRUE
+
+num_evals <- 500
+```
+```{r}
+# random dataframe for 5 params
+random_distributed_df <- data.frame(
+  num_trees = round(runif(num_evals, num_trees_lower, num_trees_upper)),
+  mtry = round(runif(num_evals, mtry_lower, mtry_upper)),
+  sample_fraction = runif(num_evals, sample_fraction_lower, sample_fraction_upper),
+  min_node_size = round(runif(num_evals, min_node_size_lower, min_node_size_upper)),
+  replace = sample(c(replace_lower, replace_upper), num_evals, replace = TRUE)
+)
+```
+
+
+
+```{r}
+# Define the number of folds
+k <- 5
+
+# Create an empty list to store the fold indices
+fold_indices <- vector("list", k)
+
+# Calculate the number of observations in each fold
+fold_size <- floor(nrow(house_prices) / k)
+
+# Create the fold indices
+for (i in 1:k) {
+  start_index <- (i - 1) * fold_size + 1
+  end_index <- i * fold_size
+  
+  # For the last fold, adjust the end index to include any remaining observations
+  if (i == k) {
+    end_index <- nrow(house_prices)
+  }
+  
+  fold_indices[[i]] <- start_index:end_index
+}
+
+# Perform k-fold cross validation
+results_frame <- data.frame(
+  num_trees = numeric(),
+  sample_fraction = numeric(),
+  mtry = numeric(),
+  replace = logical(),
+  min_node_size = numeric(),
+  mse = numeric(),
+  runtime_training = numeric(),
+  runtime_prediction = numeric()
+)
+
+for (i in 1:k) {
+  # Get the indices for the current fold
+  test_indices <- fold_indices[[i]]
+  train_indices <- unlist(fold_indices[-i])
+  
+  # Create the training and test sets
+  train_set <- house_prices[train_indices, ]
+  test_set <- house_prices[test_indices, ]
+  
+  # Perform the training and prediction
+  # Loop over the grid of parameters
+for (i in seq_len(nrow(random_distributed_df))) {
+  num_trees = random_distributed_df[i, "num_trees"]
+  sample_fraction = random_distributed_df[i, "sample_fraction"]
+  mtry = random_distributed_df[i, "mtry"]
+  replace = random_distributed_df[i, "replace"]
+  min_node_size = random_distributed_df[i, "min_node_size"]
+
+  runtime_training <- system.time({
+    model <- ranger::ranger(
+    SalePrice ~ .,
+    data = train_set,
+    num.trees =num_trees,
+    sample.fraction = sample_fraction,
+    mtry = mtry,
+    replace = replace,
+    min.node.size = min_node_size
+  )
+  })[3] # [3]rd is the elapsed time
+
+  print(paste("Successfully trained hyperparameter combination: ",
+              min_node_size,
+              sample_fraction,
+              mtry,
+              replace,
+              min_node_size
+        )
+    )
+
+  runtime_prediction <- system.time({
+    pred <- predict(model, test_set[, colnames(test_set) != "SalePrice"])
+    errors <- pred$predictions - test_set$SalePrice
+    squared_errors <- errors^2
+    mse <- mean(squared_errors)
+    })[3] # [3]rd element is the elapsed time
+
+  # Ensure all variables are of length 1
+  num_trees <- as.numeric(num_trees)
+  sample_fraction <- as.numeric(sample_fraction)
+  mtry <- as.numeric(mtry)
+  replace <- as.logical(replace)
+  min_node_size <- as.numeric(min_node_size)
+  mse <- as.numeric(mse)
+  runtime_training <- as.numeric(runtime_training)
+  runtime_prediction <- as.numeric(runtime_prediction)
+
+  # Store the results
+  results_frame <- rbind(results_frame, data.frame(
+    num_trees = num_trees,
+    sample_fraction = sample_fraction,
+    mtry = mtry,
+    replace = replace,
+    min_node_size = min_node_size,
+    mse = mse,
+    runtime_training = runtime_training,
+    runtime_prediction = runtime_prediction
+  ))
+}
+}
+
+# Remove the first empty row from the results frame
+results_frame <- results_frame[-1, ]
+
 ```
 
 ```{r}
-
-house_prices <- read.csv("./resources/house_prices.csv")
-
-random_indices <- sample(1:nrow(house_prices))
-house_prices <- house_prices[random_indices, ]
-train_index <- createDataPartition(house_prices$SalePrice, p = 0.8, list = FALSE)
-train_set <- house_prices[train_index, ] # 80% of the datase
-test_set <- house_prices[-train_index, ]
-
+write.csv(results_frame, file = "./resources/results_all_random/results_all_random.csv")
 ```
+
 
 ```{r}
 # # Define the grid of parameters to search over
@@ -119,112 +254,8 @@ test_set <- house_prices[-train_index, ]
 # write.csv(results, file = "./resources/results.csv")
 ```
 
-# Random Search all parameters
+# Pairwise Random Search
 ```{r}
-# Define the boundaries for RandomSearch
-num_trees_lower <- 2
-num_trees_upper <- 2048
-mtry_lower <- 1
-mtry_upper <- 60
-sample_fraction_lower <- 0.1
-sample_fraction_upper <- 1
-min_node_size_lower <- 1
-min_node_size_upper <- 50
-replace_lower <- FALSE
-replace_upper <- TRUE
-
-num_evals <- 50
-```
-
-```{r}
-# grid for 5 params
-random_distributed_grid <- data.frame(
-  num_trees = round(runif(num_evals, num_trees_lower, num_trees_upper)),
-  mtry = round(runif(num_evals, mtry_lower, mtry_upper)),
-  sample_fraction = runif(num_evals, sample_fraction_lower, sample_fraction_upper),
-  min_node_size = round(runif(num_evals, min_node_size_lower, min_node_size_upper)),
-  replace = sample(c(replace_lower, replace_upper), num_evals, replace = TRUE)
-)
-```
-
-```{r}
-# Initialize a data frame to store the results
-results_frame <- data.frame(
-  num_trees = numeric(),
-  sample_fraction = numeric(),
-  mtry = numeric(),
-  replace = logical(),
-  min_node_size = numeric(),
-
-  mse = numeric(),
-  runtime_training = numeric(),
-  runtime_prediction = numeric()
-)
-
-# Loop over the grid of parameters
-for (i in seq_len(nrow(random_distributed_grid))) {
-  num_trees = random_distributed_grid[i, "num_trees"]
-  sample_fraction = random_distributed_grid[i, "sample_fraction"]
-  mtry = random_distributed_grid[i, "mtry"]
-  replace = random_distributed_grid[i, "replace"]
-  min_node_size = random_distributed_grid[i, "min_node_size"]
-
-  runtime_training <- system.time({
-    model <- ranger::ranger(
-    SalePrice ~ .,
-    data = train_set,
-    num.trees =num_trees,
-    sample.fraction = sample_fraction,
-    mtry = mtry,
-    replace = replace,
-    min.node.size = min_node_size
-  )
-  })[3] # [3]rd is the elapsed time
-
-  print(paste("Successfully trained hyperparameter combination: ",
-              min_node_size,
-              sample_fraction,
-              mtry,
-              replace,
-              min_node_size
-        )
-    )
-
-  runtime_prediction <- system.time({
-    pred <- predict(model, test_set[, colnames(test_set) != "SalePrice"])
-    errors <- pred$predictions - test_set$SalePrice
-    squared_errors <- errors^2
-    mse <- mean(squared_errors)
-    })[3] # [3]rd element is the elapsed time
-
-  # Ensure all variables are of length 1
-  num_trees <- as.numeric(num_trees)
-  sample_fraction <- as.numeric(sample_fraction)
-  mtry <- as.numeric(mtry)
-  replace <- as.logical(replace)
-  min_node_size <- as.numeric(min_node_size)
-  mse <- as.numeric(mse)
-  runtime_training <- as.numeric(runtime_training)
-  runtime_prediction <- as.numeric(runtime_prediction)
-
-  # Store the results
-  results_frame <- rbind(results_frame, data.frame(
-    num_trees = num_trees,
-    sample_fraction = sample_fraction,
-    mtry = mtry,
-    replace = replace,
-    min_node_size = min_node_size,
-    mse = mse,
-    runtime_training = runtime_training,
-    runtime_prediction = runtime_prediction
-  ))
-}
-# write.csv(results_random_search, file = "./resources/results_all_random/results.csv")
-```
-
-```{r}
-
-num_evals <- 5
 
 # Pair 1: num_trees and mtry
 random_num_trees_mtry <- data.frame(
@@ -301,8 +332,53 @@ random_distributed_frames <- list(
 )
 ```
 
-```{r}
 
+```{r}
+# Define the number of folds
+k <- 5
+
+# Create an empty list to store the fold indices
+fold_indices <- vector("list", k)
+
+# Calculate the number of observations in each fold
+fold_size <- floor(nrow(house_prices) / k)
+
+# Create the fold indices
+for (i in 1:k) {
+  start_index <- (i - 1) * fold_size + 1
+  end_index <- i * fold_size
+  
+  # For the last fold, adjust the end index to include any remaining observations
+  if (i == k) {
+    end_index <- nrow(house_prices)
+  }
+  
+  fold_indices[[i]] <- start_index:end_index
+}
+
+# Perform k-fold cross validation
+results_frame <- data.frame(
+  num_trees = numeric(),
+  sample_fraction = numeric(),
+  mtry = numeric(),
+  replace = logical(),
+  min_node_size = numeric(),
+  mse = numeric(),
+  runtime_training = numeric(),
+  runtime_prediction = numeric()
+)
+
+for (i in 1:k) {
+  # Get the indices for the current fold
+  test_indices <- fold_indices[[i]]
+  train_indices <- unlist(fold_indices[-i])
+  
+  # Create the training and test sets
+  train_set <- house_prices[train_indices, ]
+  test_set <- house_prices[test_indices, ]
+  
+  # Perform the training and prediction
+  # Loop over the grid of parameters
 # loop through all frames
 for (frame in random_distributed_frames) {
   name_param_1 <- colnames(frame)[1]
@@ -360,13 +436,16 @@ for (frame in random_distributed_frames) {
     results[[name_param_2]] <- frame[i, name_param_2]
     results_frame <- rbind(results_frame, as.data.frame(t(unlist(results))))
 
-    print(paste("Successfully trained hyperparameter combination: ", 
+    print(paste("Successfully trained hyperparameter combination: ",
                 name_param_1, ": ", frame[i, name_param_1], "and",
-                name_param_2, ": ", frame[i, name_param_2], ,
+                name_param_2, ": ", frame[i, name_param_2],
                 "with mse: ", mse, "and runtime: ", runtime_training, "seconds."
           )
           )
   }
+
+# Remove the first empty row from the results frame
+results_frame <- results_frame[-1, ]
 
   # Write the results to a CSV file
   write.csv(results_frame, file = paste0("./resources/results_pairwise_random/", df_name, ".csv"))
@@ -374,25 +453,6 @@ for (frame in random_distributed_frames) {
   print(paste("Successfully wrote", df_name, "to file: ", paste0("./resources/results_pairwise_random/", df_name, ".csv")))
   print("--------------------")
 }
-```
-
-
-
-```{r}
-
-results_frame <- data.frame(
-  num_trees = numeric(),
-  sample_fraction = numeric(),
-  mtry = numeric(),
-  replace = logical(),
-  min_node_size = numeric(),
-  mse = numeric(),
-  runtime_training = numeric(),
-  runtime_prediction = numeric()
-)
-
-df_name <- "num_trees_mtry"
-print(paste0("./resources/results_pairwise_random/", df_name, ".csv"))
-write.csv(results_frame, file = paste0("./resources/results_pairwise_random/", df_name, ".csv"))
+}
 
 ```

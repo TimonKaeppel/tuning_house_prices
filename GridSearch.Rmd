@@ -1,0 +1,393 @@
+# Grid Search
+## Initial Setup
+```{r}
+library(ranger)
+library(caret)
+library(dplyr)
+```
+
+```{r}
+set.seed(124)
+```
+
+```{r}
+house_prices <- read.csv("./resources/house_prices.csv")
+
+random_indices <- sample(1:nrow(house_prices))
+house_prices <- house_prices[random_indices, ]
+train_index <- createDataPartition(house_prices$SalePrice, p = 0.8, list = FALSE)
+train_set <- house_prices[train_index, ] # 80% of the dataset
+test_set <- house_prices[-train_index, ] # 20% of the dataset
+
+```
+
+## One by One tuning
+### define grid
+```{r}
+# num.trees_values <- c(1:150, 256, 512, 1024, 2048)
+# mtry_values <- seq(1, 60, 1)
+# sample.fraction_values <- seq(0.01, 1, 0.01)
+# min.node.size_values <- seq(1, 50, 1)
+# replace_values <- c(TRUE, FALSE)
+
+## for testing
+num.trees_values <- c(1,5,10,100)
+mtry_values <- c(1,5,10)
+sample.fraction_values <- c(0.1, 0,5, 1)
+min.node.size_values <- c(10, 20, 30)
+replace_values <- c(TRUE, FALSE)
+
+```
+
+### num.trees
+```{r}
+results_frame <- data.frame(
+  num_trees = character(),
+  mse = numeric(),
+  runtime_training = numeric(),
+  runtime_prediction = numeric()
+)
+
+for (val in num.trees_values) {
+
+  total_mse <- 0
+  total_training_time <- 0
+  total_prediction_time <- 0
+
+  num_folds <- 5
+  folds <- createFolds(train_set$SalePrice, k = num_folds)
+
+  for (i in 1:num_folds) {
+    # Split the data into training and validation sets
+    validation_indices <- folds[[i]]
+    training_indices <- setdiff(1:nrow(train_set), validation_indices)
+    training_data <- train_set[training_indices, ]
+    validation_data <- train_set[validation_indices, ]
+
+    # Train the model and calculate the training time
+    training_time <- system.time(
+      model <- ranger::ranger(
+        formula = SalePrice ~ .,
+        data = training_data,
+        num.trees = round(val)
+      )
+    )
+
+    # Make predictions and calculate the prediction time
+    prediction_time <- system.time(
+      pred <- predict(model, validation_data[, colnames(validation_data) != "SalePrice"])
+    )
+
+    # Calculate the mean squared error
+    errors <- pred$predictions - validation_data$SalePrice
+    squared_errors <- errors^2
+    mse <- mean(squared_errors)
+
+    # Add to total variables
+    total_mse <- total_mse + mse
+    total_training_time <- total_training_time + training_time[3]
+    total_prediction_time <- total_prediction_time + prediction_time[3]
+  }
+
+  # Calculate the mean of the total variables
+  mean_mse <- total_mse / num_folds
+  mean_training_time <- total_training_time / num_folds
+  mean_prediction_time <- total_prediction_time / num_folds
+
+  results_frame <- rbind(
+    results_frame,
+    data.frame(
+      num_trees = val,
+      mse = mean_mse,
+      runtime_training = mean_training_time,
+      runtime_prediction = mean_prediction_time
+    )
+  )
+}
+
+write.csv(results_frame, file = "resources/results_solo_grid/num_trees.csv", row.names = FALSE)
+```
+
+### mtry
+
+```{r}
+results_frame <- data.frame(
+  mtry = numeric(),
+  mse = numeric(),
+  runtime_training = numeric(),
+  runtime_prediction = numeric()
+)
+
+for (val in mtry_values) {
+
+  total_mse <- 0
+  total_training_time <- 0
+  total_prediction_time <- 0
+
+  num_folds <- 5
+  folds <- createFolds(train_set$SalePrice, k = num_folds)
+
+  for (i in 1:num_folds) {
+    # Split the data into training and validation sets
+    validation_indices <- folds[[i]]
+    training_indices <- setdiff(1:nrow(train_set), validation_indices)
+    training_data <- train_set[training_indices, ]
+    validation_data <- train_set[validation_indices, ]
+
+    # Train the model and calculate the training time
+    training_time <- system.time(
+      model <- ranger::ranger(
+        formula = SalePrice ~ .,
+        data = training_data,
+        mtry = round(val)
+      )
+    )
+
+    # Make predictions and calculate the prediction time
+    prediction_time <- system.time(
+      pred <- predict(model, validation_data[, colnames(validation_data) != "SalePrice"])
+    )
+
+    # Calculate the mean squared error
+    errors <- pred$predictions - validation_data$SalePrice
+    squared_errors <- errors^2
+    mse <- mean(squared_errors)
+
+    # Add to total variables
+    total_mse <- total_mse + mse
+    total_training_time <- total_training_time + training_time[3]
+    total_prediction_time <- total_prediction_time + prediction_time[3]
+  }
+
+  # Calculate the mean of the total variables
+  mean_mse <- total_mse / num_folds
+  mean_training_time <- total_training_time / num_folds
+  mean_prediction_time <- total_prediction_time / num_folds
+
+  results_frame <- rbind(
+    results_frame,
+    data.frame(
+      mtry = val,
+      mse = mean_mse,
+      runtime_training = mean_training_time,
+      runtime_prediction = mean_prediction_time
+    )
+  )
+}
+
+write.csv(results_frame, file = "resources/results_solo_grid/mtry.csv", row.names = FALSE)
+```
+
+### sample.fraction
+
+```{r}
+results_frame <- data.frame(
+  sample_fraction = numeric(),
+  mse = numeric(),
+  runtime_training = numeric(),
+  runtime_prediction = numeric()
+)
+
+for (val in sample.fraction_values) {
+
+  total_mse <- 0
+  total_training_time <- 0
+  total_prediction_time <- 0
+
+  num_folds <- 5
+  folds <- createFolds(train_set$SalePrice, k = num_folds)
+
+  for (i in 1:num_folds) {
+    # Split the data into training and validation sets
+    validation_indices <- folds[[i]]
+    training_indices <- setdiff(1:nrow(train_set), validation_indices)
+    training_data <- train_set[training_indices, ]
+    validation_data <- train_set[validation_indices, ]
+
+    # Train the model and calculate the training time
+    training_time <- system.time(
+      model <- ranger::ranger(
+        formula = SalePrice ~ .,
+        data = training_data,
+        sample.fraction = round(val)
+      )
+    )
+
+    # Make predictions and calculate the prediction time
+    prediction_time <- system.time(
+      pred <- predict(model, validation_data[, colnames(validation_data) != "SalePrice"])
+    )
+
+    # Calculate the mean squared error
+    errors <- pred$predictions - validation_data$SalePrice
+    squared_errors <- errors^2
+    mse <- mean(squared_errors)
+
+    # Add to total variables
+    total_mse <- total_mse + mse
+    total_training_time <- total_training_time + training_time[3]
+    total_prediction_time <- total_prediction_time + prediction_time[3]
+  }
+
+  # Calculate the mean of the total variables
+  mean_mse <- total_mse / num_folds
+  mean_training_time <- total_training_time / num_folds
+  mean_prediction_time <- total_prediction_time / num_folds
+
+  results_frame <- rbind(
+    results_frame,
+    data.frame(
+      sample.fraction = val,
+      mse = mean_mse,
+      runtime_training = mean_training_time,
+      runtime_prediction = mean_prediction_time
+    )
+  )
+}
+
+write.csv(results_frame, file = "resources/results_solo_grid/sample_fraction.csv", row.names = FALSE)
+```
+
+### min.node.size
+
+```{r}
+results_frame <- data.frame(
+  min_node_size = numeric(),
+  mse = numeric(),
+  runtime_training = numeric(),
+  runtime_prediction = numeric()
+)
+
+for (val in min.node.size_values) {
+
+  total_mse <- 0
+  total_training_time <- 0
+  total_prediction_time <- 0
+
+  num_folds <- 5
+  folds <- createFolds(train_set$SalePrice, k = num_folds)
+
+  for (i in 1:num_folds) {
+    # Split the data into training and validation sets
+    validation_indices <- folds[[i]]
+    training_indices <- setdiff(1:nrow(train_set), validation_indices)
+    training_data <- train_set[training_indices, ]
+    validation_data <- train_set[validation_indices, ]
+
+    # Train the model and calculate the training time
+    training_time <- system.time(
+      model <- ranger::ranger(
+        formula = SalePrice ~ .,
+        data = training_data,
+        min.node.size = round(val)
+      )
+    )
+
+    # Make predictions and calculate the prediction time
+    prediction_time <- system.time(
+      pred <- predict(model, validation_data[, colnames(validation_data) != "SalePrice"])
+    )
+
+    # Calculate the mean squared error
+    errors <- pred$predictions - validation_data$SalePrice
+    squared_errors <- errors^2
+    mse <- mean(squared_errors)
+
+    # Add to total variables
+    total_mse <- total_mse + mse
+    total_training_time <- total_training_time + training_time[3]
+    total_prediction_time <- total_prediction_time + prediction_time[3]
+  }
+
+  # Calculate the mean of the total variables
+  mean_mse <- total_mse / num_folds
+  mean_training_time <- total_training_time / num_folds
+  mean_prediction_time <- total_prediction_time / num_folds
+
+  results_frame <- rbind(
+    results_frame,
+    data.frame(
+      min.node.size = val,
+      mse = mean_mse,
+      runtime_training = mean_training_time,
+      runtime_prediction = mean_prediction_time
+    )
+  )
+}
+
+write.csv(results_frame, file = "resources/results_solo_grid/min_node_size.csv", row.names = FALSE)
+```
+
+### replace
+
+```{r}
+results_frame <- data.frame(
+  replace = logical(),
+  mse = numeric(),
+  runtime_training = numeric(),
+  runtime_prediction = numeric()
+)
+
+for (val in replace_values) {
+
+  total_mse <- 0
+  total_training_time <- 0
+  total_prediction_time <- 0
+
+  num_folds <- 5
+  folds <- createFolds(train_set$SalePrice, k = num_folds)
+
+  for (i in 1:num_folds) {
+    # Split the data into training and validation sets
+    validation_indices <- folds[[i]]
+    training_indices <- setdiff(1:nrow(train_set), validation_indices)
+    training_data <- train_set[training_indices, ]
+    validation_data <- train_set[validation_indices, ]
+
+    # Train the model and calculate the training time
+    training_time <- system.time(
+      model <- ranger::ranger(
+        formula = SalePrice ~ .,
+        data = training_data,
+        replace = round(val)
+      )
+    )
+
+    # Make predictions and calculate the prediction time
+    prediction_time <- system.time(
+      pred <- predict(model, validation_data[, colnames(validation_data) != "SalePrice"])
+    )
+
+    # Calculate the mean squared error
+    errors <- pred$predictions - validation_data$SalePrice
+    squared_errors <- errors^2
+    mse <- mean(squared_errors)
+
+    # Add to total variables
+    total_mse <- total_mse + mse
+    total_training_time <- total_training_time + training_time[3]
+    total_prediction_time <- total_prediction_time + prediction_time[3]
+  }
+
+  # Calculate the mean of the total variables
+  mean_mse <- total_mse / num_folds
+  mean_training_time <- total_training_time / num_folds
+  mean_prediction_time <- total_prediction_time / num_folds
+
+  results_frame <- rbind(
+    results_frame,
+    data.frame(
+      replace = val,
+      mse = mean_mse,
+      runtime_training = mean_training_time,
+      runtime_prediction = mean_prediction_time
+    )
+  )
+}
+
+write.csv(results_frame, file = "resources/results_solo_grid/replace.csv", row.names = FALSE)
+```
+
+```{r}
+
+```

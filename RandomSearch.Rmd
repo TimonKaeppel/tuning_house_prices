@@ -1,0 +1,367 @@
+# Random Search
+## Initial Setup
+```{r}
+library(ranger)
+library(caret)
+library(dplyr)
+```
+
+```{r}
+set.seed(124)
+```
+
+```{r}
+house_prices <- read.csv("./resources/house_prices.csv")
+
+random_indices <- sample(1:nrow(house_prices))
+house_prices <- house_prices[random_indices, ]
+train_index <- createDataPartition(house_prices$SalePrice, p = 0.8, list = FALSE)
+train_set <- house_prices[train_index, ] # 80% of the dataset
+test_set <- house_prices[-train_index, ] # 20% of the dataset
+
+```
+
+## all 5 random search
+
+```{r}
+# Define the objective function
+objective_function <- function(
+                          num.trees,
+                          mtry,
+                          sample.fraction,
+                          min.node.size,
+                          replace) {
+
+  # Initialize total variables
+  total_mse <- 0
+  total_training_time <- 0
+  total_prediction_time <- 0
+
+  # Create 5-fold cross-validation
+  num_folds = 5
+  folds <- createFolds(train_set$SalePrice, k = num_folds)
+
+  for (i in 1:num_folds) {
+    # Split the data into training and validation sets
+    validation_indices <- folds[[i]]
+    training_indices <- setdiff(1:nrow(train_set), validation_indices)
+    training_data <- train_set[training_indices, ]
+    validation_data <- train_set[validation_indices, ]
+    # print length
+
+    # Train the model and calculate the training time
+    training_time <- system.time(
+      model <- ranger::ranger(
+        formula = SalePrice ~ .,
+        data = training_data,
+        num.trees = round(num.trees),
+        mtry = round(mtry),
+        sample.fraction = sample.fraction,
+        min.node.size = round(min.node.size),
+        replace = replace
+      )
+    )
+
+    # Make predictions and calculate the prediction time
+    prediction_time <- system.time(
+      pred <- predict(model, validation_data[, colnames(validation_data) != "SalePrice"])
+    )
+
+    # Calculate the mean squared error
+    errors <- pred$predictions - validation_data$SalePrice
+    squared_errors <- errors^2
+    mse <- mean(squared_errors)
+
+    # Add to total variables
+    total_mse <- total_mse + mse
+    total_training_time <- total_training_time + training_time[3]
+    total_prediction_time <- total_prediction_time + prediction_time[3]
+  }
+
+  # Calculate the mean of the total variables
+  mean_mse <- total_mse / num_folds
+  mean_training_time <- total_training_time / num_folds
+  mean_prediction_time <- total_prediction_time / num_folds
+  
+  # Return the results
+  return(list(
+    num_trees = num.trees,
+    mtry = mtry,
+    sample_fraction = sample.fraction,
+    min_node_size = min.node.size,
+    replace = replace,
+    mse = mean_mse,
+    training_time = mean_training_time,
+    prediction_time = mean_prediction_time
+  ))
+}
+
+```
+
+```{r}
+# Define the boundaries for RandomSearch
+num_trees_lower <- 2
+num_trees_upper <- 2048
+mtry_lower <- 1
+mtry_upper <- 60
+sample_fraction_lower <- 0.1
+sample_fraction_upper <- 1
+min_node_size_lower <- 1
+min_node_size_upper <- 50
+replace_lower <- FALSE
+replace_upper <- TRUE
+
+num_evals <- 10
+```
+```{r}
+# random dataframe for 5 params
+random_distributed_df <- data.frame(
+  num_trees = round(runif(num_evals, num_trees_lower, num_trees_upper)),
+  mtry = round(runif(num_evals, mtry_lower, mtry_upper)),
+  sample_fraction = runif(num_evals, sample_fraction_lower, sample_fraction_upper),
+  min_node_size = round(runif(num_evals, min_node_size_lower, min_node_size_upper)),
+  replace = sample(c(replace_lower, replace_upper), num_evals, replace = TRUE)
+)
+```
+
+```{r}
+
+results_frame_all_params <- data.frame(
+  num_trees = numeric(),
+  sample_fraction = numeric(),
+  mtry = numeric(),
+  replace = logical(),
+  min_node_size = numeric(),
+  mse = numeric(),
+  runtime_training = numeric(),
+  runtime_prediction = numeric()
+)
+
+for (i in seq_len(nrow(random_distributed_df))) {
+  num_trees = random_distributed_df[i, "num_trees"]
+  sample_fraction = random_distributed_df[i, "sample_fraction"]
+  mtry = random_distributed_df[i, "mtry"]
+  replace = random_distributed_df[i, "replace"]
+  min_node_size = random_distributed_df[i, "min_node_size"]
+
+  print(paste("Training iteration: ", i))
+
+  results <- objective_function(
+    num.trees = num_trees,
+    mtry = mtry,
+    sample.fraction = sample_fraction,
+    min.node.size = min_node_size,
+    replace = replace
+  )
+
+  results_frame_all_params <- rbind(results_frame_all_params, data.frame(
+    num_trees = results$num_trees,
+    sample_fraction = results$sample_fraction,
+    mtry = results$mtry,
+    replace = results$replace,
+    min_node_size = results$min_node_size,
+    mse = results$mse,
+    runtime_training = results$training_time,
+    runtime_prediction = results$prediction_time
+  ))
+}
+
+results_frame_all_params
+
+```
+
+```{r}
+ write.csv(results_frame_all_params, file = "./resources/results_all_random/results_all_random.csv")
+```
+
+## Pairwise Random Search
+```{r}
+
+num_evals <- 5
+
+# Pair 1: num_trees and mtry
+random_num_trees_mtry <- data.frame(
+  num_trees = round(runif(num_evals, num_trees_lower, num_trees_upper)),
+  mtry = round(runif(num_evals, mtry_lower, mtry_upper))
+)
+
+# Pair 2: num_trees and sample_fraction
+random_num_trees_sample_fraction <- data.frame(
+  num_trees = round(runif(num_evals, num_trees_lower, num_trees_upper)),
+  sample_fraction = runif(num_evals, sample_fraction_lower, sample_fraction_upper)
+)
+
+# Pair 3: num_trees and min_node_size
+random_num_trees_min_node_size <- data.frame(
+  num_trees = round(runif(num_evals, num_trees_lower, num_trees_upper)),
+  min_node_size = round(runif(num_evals, min_node_size_lower, min_node_size_upper))
+)
+
+# Pair 4: num_trees and replace
+random_num_trees_replace <- data.frame(
+  num_trees = round(runif(num_evals, num_trees_lower, num_trees_upper)),
+  replace = sample(c(replace_lower, replace_upper), num_evals, replace = TRUE)
+)
+
+# Pair 5: mtry and sample_fraction
+random_mtry_sample_fraction <- data.frame(
+  mtry = round(runif(num_evals, mtry_lower, mtry_upper)),
+  sample_fraction = runif(num_evals, sample_fraction_lower, sample_fraction_upper)
+)
+
+# Pair 6: mtry and min_node_size
+random_mtry_min_node_size <- data.frame(
+  mtry = round(runif(num_evals, mtry_lower, mtry_upper)),
+  min_node_size = round(runif(num_evals, min_node_size_lower, min_node_size_upper))
+)
+
+# Pair 7: mtry and replace
+random_mtry_replace <- data.frame(
+  mtry = round(runif(num_evals, mtry_lower, mtry_upper)),
+  replace = sample(c(replace_lower, replace_upper), num_evals, replace = TRUE)
+)
+
+# Pair 8: sample_fraction and min_node_size
+random_sample_fraction_min_node_size <- data.frame(
+  sample_fraction = runif(num_evals, sample_fraction_lower, sample_fraction_upper),
+  min_node_size = round(runif(num_evals, min_node_size_lower, min_node_size_upper))
+)
+
+# Pair 9: sample_fraction and replace
+random_sample_fraction_replace <- data.frame(
+  sample_fraction = runif(num_evals, sample_fraction_lower, sample_fraction_upper),
+  replace = sample(c(replace_lower, replace_upper), num_evals, replace = TRUE)
+)
+
+# Pair 10: min_node_size and replace
+random_min_node_size_replace <- data.frame(
+  min_node_size = round(runif(num_evals, min_node_size_lower, min_node_size_upper)),
+  replace = sample(c(replace_lower, replace_upper), num_evals, replace = TRUE)
+)
+
+# list of all dataframes
+random_distributed_frames <- list(
+  random_num_trees_mtry,
+  random_num_trees_sample_fraction,
+  random_num_trees_min_node_size,
+  random_num_trees_replace,
+  random_mtry_sample_fraction,
+  random_mtry_min_node_size,
+  random_mtry_replace,
+  random_sample_fraction_min_node_size,
+  random_sample_fraction_replace,
+  random_min_node_size_replace
+)
+```
+
+```{r}
+random_distributed_frames[1]
+```
+
+```{r}
+
+for (frame in random_distributed_frames) {
+  name_param_1 <- colnames(frame)[1]
+  name_param_2 <- colnames(frame)[2]
+  df_name <- paste(name_param_1, name_param_2, sep = "_")
+  arg_name_param1 <- gsub("_", ".", name_param_1)
+  arg_name_param2 <- gsub("_", ".", name_param_2)
+
+  print(paste("Training hyperparameter combination: ", name_param_1, "and", name_param_2))
+
+  results_frame_pairwise <- data.frame(
+    num_trees = numeric(),
+    sample_fraction = numeric(),
+    mtry = numeric(),
+    replace = logical(),
+    min_node_size = numeric(),
+    mse = numeric(),
+    runtime_training = numeric(),
+    runtime_prediction = numeric()
+  )
+
+# Access data in each frame
+  for (i in 1:nrow(frame)) {
+
+    total_mse <- 0
+    total_training_time <- 0
+    total_prediction_time <- 0
+
+    # Create 5-fold cross-validation
+    num_folds = 5
+    folds <- createFolds(train_set$SalePrice, k = num_folds)
+
+    for (k in 1:num_folds) {
+      # Split the data into training and validation sets
+      validation_indices <- folds[[k]]
+      training_indices <- setdiff(1:nrow(train_set), validation_indices)
+      training_data <- train_set[training_indices, ]
+      validation_data <- train_set[validation_indices, ]
+
+      args <- list(
+        formula = SalePrice ~ .,
+        data = training_data
+      )
+      args[[arg_name_param1]] <- frame[i, name_param_1]
+      args[[arg_name_param2]] <- frame[i, name_param_2]
+
+      # Call the ranger function with the arguments
+      runtime_training <- system.time({
+        model <- do.call(ranger::ranger, args)
+      })["elapsed"]
+
+      runtime_prediction <- system.time({
+        pred <- predict(model, validation_data[, colnames(test_set) != "SalePrice"])
+      })["elapsed"]
+      errors <- pred$predictions - test_set$SalePrice
+      squared_errors <- errors^2
+      mse <- mean(squared_errors)
+
+      # Add to total variables
+      total_mse <- total_mse + mse
+      total_training_time <- total_training_time + runtime_training
+      total_prediction_time <- total_prediction_time + runtime_prediction
+    }
+
+    # Calculate the mean of the total variables
+    mean_mse <- total_mse / num_folds
+    mean_training_time <- total_training_time / num_folds
+    mean_prediction_time <- total_prediction_time / num_folds
+
+    # Store the results
+    results <- list(
+      num_trees = NA,
+      sample_fraction = NA,
+      mtry = NA,
+      replace = NA,
+      min_node_size = NA,
+      mse = mean_mse,
+      runtime_training = mean_training_time,
+      runtime_prediction = mean_prediction_time
+    )
+
+    results[[name_param_1]] <- frame[i, name_param_1]
+    results[[name_param_2]] <- frame[i, name_param_2]
+    results_frame_pairwise <- rbind(results_frame_pairwise, as.data.frame(t(unlist(results))))
+
+    print(paste("Successfully trained hyperparameter combination: ",
+                name_param_1, ": ", frame[i, name_param_1], "and",
+                name_param_2, ": ", frame[i, name_param_2],
+                "with mse: ", mse, "and runtime: ", runtime_training, "seconds."
+          )
+          )
+  }
+
+  # some cleaning
+  df <- df %>%
+    select_if(~!all(is.na(.)))
+  colnames(results_frame_pairwise)[colnames(results_frame_pairwise) == "runtime_training.elapsed"] <- "runtime_training"
+  colnames(results_frame_pairwise)[colnames(results_frame_pairwise) == "runtime_prediction.elapsed"] <- "runtime_prediction"
+
+  # Write the results to a CSV file
+  write.csv(results_frame_pairwise, file = paste0("./resources/results_pairwise_random/", df_name, ".csv"))
+  print("--------------------")
+  print(paste("Successfully wrote", df_name, "to file: ", paste0("./resources/results_pairwise_random/", df_name, ".csv")))
+  print("--------------------")
+}
+```

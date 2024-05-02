@@ -1,3 +1,6 @@
+# Bayesian Optimization
+## Initial Setup
+
 ```{r}
 library(caret)
 library(rBayesianOptimization)
@@ -9,10 +12,7 @@ library(dplyr)
 set.seed(124)
 ```
 
-## Train Test Split, the training data will be split into folds for cv
-
 ```{r}
-# do 5f-cv on every tuning step! Don`t tune one time on the whole fold splits.
 
 house_prices <- read.csv("./resources/house_prices.csv")
 
@@ -27,7 +27,9 @@ test_set <- house_prices[-train_index, ] # 20% of the dataset
 # write.csv(test_set, file = "./resources/test_set.csv", row.names = FALSE)
 
 ```
-## Objective Function
+
+## BayesOpt all 5 hyperparams
+
 ```{r}
 
 timings <<- data.frame(
@@ -113,7 +115,6 @@ objective_function <- function(
 
 ```
 
-## Bayesian Optimization
 ```{r}
 # Define the hyperparameter boundaries
 hyperparameters <- list(
@@ -141,5 +142,8 @@ tuning_results <- BayesianOptimization(
 df <- merge(tuning_results$History, timings, by = "Round")
 colnames(df)[colnames(df) == "Value"] <- "mse"
 df$mse <- df$mse * -1
+```
+
+```{r}
 write.csv(df, file = "./resources/results_all_search_algo/tuning_results.csv", row.names = FALSE)
 ```

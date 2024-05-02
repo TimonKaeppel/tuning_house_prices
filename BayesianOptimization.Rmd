@@ -1,77 +1,145 @@
 ```{r}
 library(caret)
 library(rBayesianOptimization)
+library(ranger)
+library(dplyr)
 ```
 
 ```{r}
-set.seed(069)
+set.seed(124)
 ```
 
+## Train Test Split, the training data will be split into folds for cv
+
 ```{r}
+# do 5f-cv on every tuning step! Don`t tune one time on the whole fold splits.
+
 house_prices <- read.csv("./resources/house_prices.csv")
 
 random_indices <- sample(1:nrow(house_prices))
 house_prices <- house_prices[random_indices, ]
 train_index <- createDataPartition(house_prices$SalePrice, p = 0.8, list = FALSE)
-train_set <- house_prices[train_index, ] # 80% of the datase
-test_set <- house_prices[-train_index, ]
+train_set <- house_prices[train_index, ] # 80% of the dataset
+test_set <- house_prices[-train_index, ] # 20% of the dataset
+
+# # write train and test set to csv
+# write.csv(train_set, file = "./resources/train_set.csv", row.names = FALSE)
+# write.csv(test_set, file = "./resources/test_set.csv", row.names = FALSE)
 
 ```
-
+## Objective Function
 ```{r}
+
+timings <<- data.frame(
+  Round = integer(),
+  training_time = double(),
+  prediction_time = double() 
+)
+
 # Define the objective function
-objective_function <- function(num.trees, mtry, sample.fraction, min.node.size, replace) {
+objective_function <- function(
+                          num.trees,
+                          mtry,
+                          sample.fraction,
+                          min.node.size,
+                          replace) {
   # Convert replace to logical
   replace <- replace > 0.5
 
-  # Train the model
-  model <- ranger::ranger(
-    formula = SalePrice ~ .,
-    data = train_set,
-    num.trees = round(num.trees),
-    mtry = round(mtry),
-    sample.fraction = sample.fraction,
-    min.node.size = round(min.node.size),
-    replace = replace
-  )
+  # Initialize total variables
+  total_mse <- 0
+  total_training_time <- 0
+  total_prediction_time <- 0
 
-  # Make predictions and calculate the mean squared error
-  pred <- predict(model, test_set[, colnames(test_set) != "SalePrice"])
-  errors <- pred$predictions - test_set$SalePrice
-  squared_errors <- errors^2
-  mse <- mean(squared_errors)
+  # Create 5-fold cross-validation
+  num_folds = 5
+  folds <- createFolds(train_set$SalePrice, k = num_folds)
 
-  # Return the negative mean squared error because the optimization function tries to maximize the objective function
-  return(list(Score = -mse, Pred = pred$predictions))
+  for (i in 1:num_folds) {
+    # Split the data into training and validation sets
+    validation_indices <- folds[[i]]
+    training_indices <- setdiff(1:nrow(train_set), validation_indices)
+    training_data <- train_set[training_indices, ]
+    validation_data <- train_set[validation_indices, ]
+    # print length
+    print(paste("train:", length(training_indices),
+                "val", length(validation_indices)))
+
+    # Train the model and calculate the training time
+    training_time <- system.time(
+      model <- ranger::ranger(
+        formula = SalePrice ~ .,
+        data = training_data,
+        num.trees = round(num.trees),
+        mtry = round(mtry),
+        sample.fraction = sample.fraction,
+        min.node.size = round(min.node.size),
+        replace = replace
+      )
+    )
+
+    # Make predictions and calculate the prediction time
+    prediction_time <- system.time(
+      pred <- predict(model, validation_data[, colnames(validation_data) != "SalePrice"])
+    )
+
+    # Calculate the mean squared error
+    errors <- pred$predictions - validation_data$SalePrice
+    squared_errors <- errors^2
+    mse <- mean(squared_errors)
+
+    # Add to total variables
+    total_mse <- total_mse + mse
+    total_training_time <- total_training_time + training_time[3]
+    total_prediction_time <- total_prediction_time + prediction_time[3]
+  }
+
+  # Calculate the mean of the total variables
+  mean_mse <- total_mse / num_folds
+  mean_training_time <- total_training_time / num_folds
+  mean_prediction_time <- total_prediction_time / num_folds
+
+  round <- nrow(timings) + 1
+
+  timings <<- rbind(timings, data.frame(
+    Round = round,
+    training_time = mean_training_time,
+    prediction_time = mean_prediction_time
+  ))
+  
+  # Return the results
+  return(list(Score = -mean_mse))
 }
 
+```
+
+## Bayesian Optimization
+```{r}
 # Define the hyperparameter boundaries
 hyperparameters <- list(
-  num.trees = c(2, 500),
+  num.trees = c(2, 2048),
   mtry = c(1, 60),
   sample.fraction = c(0.1, 1),
   min.node.size = c(1, 50),
-  replace = c(0, 1)  # Use 0 and 1 for FALSE and TRUE because the optimization function expects numeric boundaries
+  replace = c(0, 1)  # optimization function expects numeric boundaries
 )
 
-# Perform the tuning
 tuning_results <- BayesianOptimization(
   FUN = objective_function,
   bounds = hyperparameters,
-  init_points = 10,  # Number of randomly chosen points to sample the target function before Bayesian Optimization
-  n_iter = 50,  # Number of iterations of Bayesian Optimization
+  init_points = 10,  # Number of initial points to sample
+  n_iter = 50,  # Number of iterations to run the optimization
   acq = "ucb",  # Acquisition function
   kappa = 2.576,  # Exploration parameter for the acquisition function
   eps = 0.0,  # Minimum improvement to continue the optimization
-  verbose = TRUE,
+  verbose = TRUE
 )
-
-# Print the tuning results
-print(tuning_results)
-
 ```
 
 ```{r}
-write.csv(tuning_results$History, file = "./resources/results_all_search_algo/tuning_results.csv")
+# merge the timings with the tuning results, before gotta do some adjustments in the df u know..
+df <- merge(tuning_results$History, timings, by = "Round")
+colnames(df)[colnames(df) == "Value"] <- "mse"
+df$mse <- df$mse * -1
+write.csv(df, file = "./resources/results_all_search_algo/tuning_results.csv", row.names = FALSE)
 ```
-

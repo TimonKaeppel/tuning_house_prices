@@ -6,6 +6,11 @@ library(caret)
 library(rBayesianOptimization)
 library(ranger)
 library(dplyr)
+
+if (!require(rBayesianOptimization)) {
+  install.packages("rBayesianOptimization")
+}
+library(rBayesianOptimization)
 ```
 
 ```{r}

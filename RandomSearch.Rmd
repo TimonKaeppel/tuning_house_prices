@@ -111,7 +111,7 @@ min_node_size_upper <- 50
 replace_lower <- FALSE
 replace_upper <- TRUE
 
-num_evals <- 10
+num_evals <- 500
 ```
 ```{r}
 # random dataframe for 5 params
@@ -171,19 +171,19 @@ results_frame_all_params
 ```
 
 ```{r}
- write.csv(results_frame_all_params, file = "./resources/results_all_random/results_all_random.csv")
+ write.csv(results_frame_all_params, file = "./resources/results_all_random/results.csv")
 ```
 
 ## Pairwise Random Search
 ```{r}
 
-num_evals <- 5
+num_evals <- 500
 
 # Pair 1: num_trees and mtry
-random_num_trees_mtry <- data.frame(
-  num_trees = round(runif(num_evals, num_trees_lower, num_trees_upper)),
-  mtry = round(runif(num_evals, mtry_lower, mtry_upper))
-)
+#random_num_trees_mtry <- data.frame(
+#  num_trees = round(runif(num_evals, num_trees_lower, num_trees_upper)),
+#  mtry = round(runif(num_evals, mtry_lower, mtry_upper))
+#)
 
 # Pair 2: num_trees and sample_fraction
 random_num_trees_sample_fraction <- data.frame(
@@ -241,7 +241,7 @@ random_min_node_size_replace <- data.frame(
 
 # list of all dataframes
 random_distributed_frames <- list(
-  random_num_trees_mtry,
+#  random_num_trees_mtry,
   random_num_trees_sample_fraction,
   random_num_trees_min_node_size,
   random_num_trees_replace,
@@ -352,9 +352,6 @@ for (frame in random_distributed_frames) {
           )
   }
 
-  # some cleaning
-  df <- df %>%
-    select_if(~!all(is.na(.)))
   colnames(results_frame_pairwise)[colnames(results_frame_pairwise) == "runtime_training.elapsed"] <- "runtime_training"
   colnames(results_frame_pairwise)[colnames(results_frame_pairwise) == "runtime_prediction.elapsed"] <- "runtime_prediction"
 
@@ -364,4 +361,7 @@ for (frame in random_distributed_frames) {
   print(paste("Successfully wrote", df_name, "to file: ", paste0("./resources/results_pairwise_random/", df_name, ".csv")))
   print("--------------------")
 }
+```
+
+```{r}
 ```

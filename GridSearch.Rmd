@@ -24,18 +24,12 @@ test_set <- house_prices[-train_index, ] # 20% of the dataset
 ## One by One tuning
 ### define grid
 ```{r}
-# num.trees_values <- c(1:150, 256, 512, 1024, 2048)
-# mtry_values <- seq(1, 60, 1)
-# sample.fraction_values <- seq(0.01, 1, 0.01)
-# min.node.size_values <- seq(1, 50, 1)
-# replace_values <- c(TRUE, FALSE)
-
-## for testing
-num.trees_values <- c(1,5,10,100)
-mtry_values <- c(1,5,10)
-sample.fraction_values <- c(0.1, 0,5, 1)
-min.node.size_values <- c(10, 20, 30)
+num.trees_values <- c(1:150, 256, 512, 1024, 2048)
+mtry_values <- seq(1, 60, 1)
+sample.fraction_values <- seq(0.01, 1, 0.01)
+min.node.size_values <- seq(1, 50, 1)
 replace_values <- c(TRUE, FALSE)
+
 
 ```
 

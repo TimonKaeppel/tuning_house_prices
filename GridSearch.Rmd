@@ -203,7 +203,7 @@ for (val in sample.fraction_values) {
       model <- ranger::ranger(
         formula = SalePrice ~ .,
         data = training_data,
-        sample.fraction = round(val)
+        sample.fraction = val
       )
     )
 

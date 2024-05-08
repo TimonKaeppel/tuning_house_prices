@@ -30,7 +30,6 @@ sample.fraction_values <- seq(0.01, 1, 0.01)
 min.node.size_values <- seq(1, 50, 1)
 replace_values <- c(TRUE, FALSE)
 
-
 ```
 
 ### num.trees

@@ -34,7 +34,6 @@ test_set <- house_prices[-train_index, ] # 20% of the dataset
 ```
 
 ## BayesOpt all 5 hyperparams
-
 ```{r}
 
 timings <<- data.frame(
@@ -133,8 +132,8 @@ hyperparameters <- list(
 tuning_results <- BayesianOptimization(
   FUN = objective_function,
   bounds = hyperparameters,
-  init_points = 10,  # Number of initial points to sample
-  n_iter = 50,  # Number of iterations to run the optimization
+  init_points = 30,  # Number of initial points to sample
+  n_iter = 300,  # Number of iterations to run the optimization
   acq = "ucb",  # Acquisition function
   kappa = 2.576,  # Exploration parameter for the acquisition function
   eps = 0.0,  # Minimum improvement to continue the optimization

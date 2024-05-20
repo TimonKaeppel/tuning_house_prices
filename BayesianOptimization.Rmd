@@ -133,7 +133,7 @@ tuning_results <- BayesianOptimization(
   FUN = objective_function,
   bounds = hyperparameters,
   init_points = 30,  # Number of initial points to sample
-  n_iter = 300,  # Number of iterations to run the optimization
+  n_iter = 100,  # Number of iterations to run the optimization
   acq = "ucb",  # Acquisition function
   kappa = 2.576,  # Exploration parameter for the acquisition function
   eps = 0.0,  # Minimum improvement to continue the optimization
@@ -142,7 +142,6 @@ tuning_results <- BayesianOptimization(
 ```
 
 ```{r}
-# merge the timings with the tuning results, before gotta do some adjustments in the df u know..
 df <- merge(tuning_results$History, timings, by = "Round")
 colnames(df)[colnames(df) == "Value"] <- "mse"
 df$mse <- df$mse * -1
